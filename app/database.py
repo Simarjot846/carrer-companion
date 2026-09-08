@@ -2,11 +2,23 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.config import DATABASE_URL
 
-# check_same_thread only matters for SQLite (used for quick local dev/demo).
-# Production and Milestone 2 onward use PostgreSQL, where this flag is ignored.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+db_url = DATABASE_URL
+connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+try:
+    engine = create_engine(db_url, connect_args=connect_args)
+    # Quick connectivity test
+    with engine.connect() as conn:
+        pass
+except Exception as e:
+    if not db_url.startswith("sqlite"):
+        print(f"Warning: Could not connect to PostgreSQL ({e}). Falling back to SQLite dev.db.")
+        db_url = "sqlite:///./dev.db"
+        connect_args = {"check_same_thread": False}
+        engine = create_engine(db_url, connect_args=connect_args)
+    else:
+        raise e
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -18,3 +30,4 @@ def get_db():
         yield db
     finally:
         db.close()
+

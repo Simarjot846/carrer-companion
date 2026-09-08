@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -88,3 +88,19 @@ class Project(Base):
     link = Column(String, nullable=True)
 
     student = relationship("Student", back_populates="projects")
+
+
+class JobPosting(Base):
+    __tablename__ = "job_postings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False, index=True)
+    company = Column(String, nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    required_skills = Column(JSON, nullable=False)  # list of strings
+    experience_level = Column(String, nullable=False, index=True)
+    location = Column(String, nullable=False)
+    posting_type = Column(String, nullable=False, index=True)  # internship / full-time
+    created_at = Column(DateTime, default=datetime.utcnow)
+    embedding = Column(JSON, nullable=True)
+

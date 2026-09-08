@@ -37,7 +37,8 @@ Student
 - **Purpose**: Convert unstructured resume text into structured candidate data.
 - **Input**: Raw resume text (already extracted from PDF).
 - **Output**: JSON with skills, education, experience, projects.
-- **Tools**: Claude API (Anthropic).
+- **Tools**: Google Gemini API.
+
 - **Knowledge**: None external — works only from the resume text given to it.
 - **Failure cases**: Malformed JSON, missing required keys, hallucinated fields.
   Handled by schema validation in `llm_extractor.py` — on failure, the resume

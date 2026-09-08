@@ -82,3 +82,41 @@ class StudentProfileOut(BaseModel):
     experience: List[ExperienceOut]
     projects: List[ProjectOut]
     resumes: List[ResumeOut]
+
+
+class JobPostingOut(BaseModel):
+    id: int
+    title: str
+    company: str
+    description: str
+    required_skills: List[str]
+    experience_level: str
+    location: str
+    posting_type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class JobMatchOut(BaseModel):
+    job_id: int
+    title: str
+    company: str
+    description: str
+    required_skills: List[str]
+    experience_level: str
+    location: str
+    posting_type: str
+    match_score: int
+    vector_similarity: float
+    reasoning: str
+    missing_skills: List[str]
+
+
+class StudentMatchesResponse(BaseModel):
+    student_id: int
+    student_name: str
+    total_matches: int
+    matches: List[JobMatchOut]
+

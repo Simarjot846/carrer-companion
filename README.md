@@ -12,7 +12,7 @@ candidate profile.
 
 ```
 Student → POST /students → Resume upload (PDF) → Text extraction (PyMuPDF)
-→ LLM structuring (Claude) → Structured profile → PostgreSQL
+→ LLM structuring (Gemini) → Structured profile → PostgreSQL
 ```
 
 ## System architecture
@@ -36,7 +36,7 @@ Job Knowledge Base, and the RAG/embeddings pipeline.
 | Backend | FastAPI (Python) | Async, native Pydantic validation for structured LLM output |
 | Database | PostgreSQL (SQLite for local dev) | Relational data — students, resumes, skills all have real foreign-key relationships |
 | ORM | SQLAlchemy | Standard, testable, migration-friendly |
-| LLM | Claude (Anthropic API) | Resume understanding and structured extraction |
+| LLM | Google Gemini AI | Resume understanding and structured extraction |
 | PDF text extraction | PyMuPDF | Deterministic, fast — not an LLM's job |
 | Vector search (planned, M2) | pgvector | Kept inside PostgreSQL instead of a standalone vector DB (Pinecone/Weaviate) — simpler ops, sufficient for this project's data scale |
 
@@ -68,7 +68,8 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env: add your ANTHROPIC_API_KEY.
+# Edit .env: add your GOOGLE_API_KEY.
+
 # DATABASE_URL defaults to local SQLite if not set — fine for development.
 # For PostgreSQL, set DATABASE_URL=postgresql://user:pass@localhost:5432/career_companion
 
