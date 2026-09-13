@@ -1,58 +1,58 @@
 import os
-import hashlib
 import numpy as np
 from typing import List
 
+# ---------------------------------------------------------------------------
+# Embedding Service
+# ---------------------------------------------------------------------------
+# Priority order:
+#   1. Voyage AI  — if VOYAGE_API_KEY is set and the call succeeds
+#   2. sentence-transformers (all-MiniLM-L6-v2) — local, free, no API key
+#
+# The sentence-transformers model is a genuine 384-dim semantic embedding
+# model (not a hash function). It runs entirely on-device with no rate
+# limits, no billing, and no internet connection required after first download.
+# ---------------------------------------------------------------------------
+
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY", "")
-EMBEDDING_DIMENSION = 384
+
+# Lazy-load the local model so startup time is unaffected when Voyage is used.
+_local_model = None
+
+def _get_local_model():
+    """Load sentence-transformers model once, reuse for all subsequent calls."""
+    global _local_model
+    if _local_model is None:
+        from sentence_transformers import SentenceTransformer
+        _local_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _local_model
+
 
 def get_embedding(text: str, input_type: str = "document") -> List[float]:
     """
-    Generates vector embedding for input text.
-    Uses Voyage AI API if VOYAGE_API_KEY is configured.
-    Falls back to high-quality deterministic dense semantic vector if key is absent/fails.
+    Returns a dense semantic embedding vector for the given text.
+
+    Tries Voyage AI first (if VOYAGE_API_KEY is configured and working).
+    Falls back to the local sentence-transformers model automatically.
     """
     api_key = os.getenv("VOYAGE_API_KEY", "")
     if api_key:
         try:
             import voyageai
             vo = voyageai.Client(api_key=api_key)
-            # voyage-3-lite or voyage-3
             res = vo.embed([text], model="voyage-3-lite", input_type=input_type)
             return res.embeddings[0]
         except Exception as e:
-            print(f"Warning: Voyage AI API call failed ({e}). Using dense vector fallback.")
+            print(f"Warning: Voyage AI API call failed ({e}). Using local sentence-transformers fallback.")
 
-    return _generate_dense_fallback_embedding(text, dimension=EMBEDDING_DIMENSION)
+    return _get_local_embedding(text)
 
 
-def _generate_dense_fallback_embedding(text: str, dimension: int = 384) -> List[float]:
+def _get_local_embedding(text: str) -> List[float]:
     """
-    Generates a normalized 384-dimensional dense vector based on semantic features,
-    word n-grams, and deterministic hashing.
-    Ensures cosine similarity reflects keyword and semantic similarity.
+    Generates a normalized 384-dim semantic embedding using
+    sentence-transformers all-MiniLM-L6-v2 (runs fully locally).
     """
-    words = text.lower().split()
-    vec = np.zeros(dimension, dtype=np.float32)
-    
-    for i, word in enumerate(words):
-        # Hash individual words
-        h = hashlib.sha256(word.encode('utf-8')).hexdigest()
-        idx = int(h, 16) % dimension
-        sign = 1 if int(h[0], 16) % 2 == 0 else -1
-        vec[idx] += sign * 1.0
-
-        # Hash word pairs (bigrams) for context
-        if i < len(words) - 1:
-            bigram = f"{word}_{words[i+1]}"
-            h_bi = hashlib.sha256(bigram.encode('utf-8')).hexdigest()
-            idx_bi = int(h_bi, 16) % dimension
-            sign_bi = 1 if int(h_bi[0], 16) % 2 == 0 else -1
-            vec[idx_bi] += sign_bi * 1.5
-
-    # L2 normalize vector
-    norm = np.linalg.norm(vec)
-    if norm > 0:
-        vec = vec / norm
-
-    return vec.tolist()
+    model = _get_local_model()
+    embedding = model.encode(text, normalize_embeddings=True)
+    return embedding.tolist()

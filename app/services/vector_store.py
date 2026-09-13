@@ -8,11 +8,31 @@ from app.services.embedding_service import get_embedding
 def prepare_job_text_for_embedding(job: JobPosting) -> str:
     """
     Concatenates job posting fields into a single text block:
-    title + description + required_skills.
+    title + company + level + type + location + required_skills + preferred_skills +
+    experience_requirements + education_requirements + responsibilities + qualifications + description.
     Per prompt instructions: do NOT chunk job postings into multiple pieces.
     """
-    skills_str = ", ".join(job.required_skills) if isinstance(job.required_skills, list) else str(job.required_skills)
-    return f"Title: {job.title}\nCompany: {job.company}\nLevel: {job.experience_level}\nType: {job.posting_type}\nLocation: {job.location}\nRequired Skills: {skills_str}\n\nDescription:\n{job.description}"
+    req_skills = ", ".join(job.required_skills) if isinstance(job.required_skills, list) else str(job.required_skills or "")
+    pref_skills = ", ".join(job.preferred_skills) if isinstance(getattr(job, "preferred_skills", None), list) else str(getattr(job, "preferred_skills", "") or "")
+    resp = getattr(job, "responsibilities", "") or ""
+    quals = getattr(job, "qualifications", "") or ""
+    exp_req = getattr(job, "experience_requirements", "") or job.experience_level
+    edu_req = getattr(job, "education_requirements", "") or ""
+
+    return (
+        f"Title: {job.title}\n"
+        f"Company: {job.company}\n"
+        f"Level: {job.experience_level}\n"
+        f"Type: {job.posting_type}\n"
+        f"Location: {job.location}\n"
+        f"Required Skills: {req_skills}\n"
+        f"Preferred Skills: {pref_skills}\n"
+        f"Experience Requirements: {exp_req}\n"
+        f"Education Requirements: {edu_req}\n"
+        f"Responsibilities: {resp}\n"
+        f"Qualifications: {quals}\n\n"
+        f"Description:\n{job.description}"
+    )
 
 
 def search_similar_jobs(db: Session, query_vector: List[float], top_k: int = 10) -> List[Tuple[JobPosting, float]]:

@@ -43,7 +43,7 @@ def extract_structured_profile(resume_text: str) -> dict:
     # 1. Try Gemini if configured
     if HAS_GENAI and GOOGLE_API_KEY:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-3.6-flash")
             response = model.generate_content(prompt)
             raw_output = response.text.strip()
             return _parse_raw_llm_json(raw_output)

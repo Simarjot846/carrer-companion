@@ -31,7 +31,9 @@ def format_candidate_profile_text(student: models.Student) -> str:
     proj_list = [f"{p.title} ({p.technologies or ''}): {p.description or ''}" for p in student.projects]
     proj_str = "; ".join(proj_list) if proj_list else "None listed"
 
-    return f"Candidate Name: {student.name}\nSkills: {skills_str}\nEducation: {edu_str}\nExperience: {exp_str}\nProjects: {proj_str}"
+    qual_str = getattr(student, "qualifications", None) or "None listed"
+
+    return f"Candidate Name: {student.name}\nSkills: {skills_str}\nEducation: {edu_str}\nExperience: {exp_str}\nProjects: {proj_str}\nQualifications: {qual_str}"
 
 
 def get_job_matches_for_student(student_id: int, db: Session, top_k: int = 10) -> List[Dict[str, Any]]:
@@ -75,8 +77,13 @@ def get_job_matches_for_student(student_id: int, db: Session, top_k: int = 10) -
             "title": job.title,
             "company": job.company,
             "description": job.description,
+            "responsibilities": getattr(job, "responsibilities", None),
             "required_skills": job.required_skills,
+            "preferred_skills": getattr(job, "preferred_skills", []),
+            "qualifications": getattr(job, "qualifications", None),
             "experience_level": job.experience_level,
+            "experience_requirements": getattr(job, "experience_requirements", None),
+            "education_requirements": getattr(job, "education_requirements", None),
             "location": job.location,
             "posting_type": job.posting_type,
             "match_score": max(0, min(100, match_score)),
@@ -116,8 +123,27 @@ def _score_matches_with_llm(student: models.Student, profile_text: str, jobs: Li
 
     jobs_formatted = ""
     for i, job in enumerate(jobs, 1):
-        req_skills = ", ".join(job.required_skills) if isinstance(job.required_skills, list) else str(job.required_skills)
-        jobs_formatted += f"\n--- JOB #{job.id} ---\nTitle: {job.title}\nCompany: {job.company}\nLocation: {job.location}\nRequired Skills: {req_skills}\nDescription: {job.description[:400]}...\n"
+        req_skills = ", ".join(job.required_skills) if isinstance(job.required_skills, list) else str(job.required_skills or "")
+        pref_skills = ", ".join(job.preferred_skills) if isinstance(getattr(job, "preferred_skills", None), list) else str(getattr(job, "preferred_skills", "") or "")
+        resp = getattr(job, "responsibilities", "") or job.description[:200]
+        quals = getattr(job, "qualifications", "") or "Not specified"
+        exp_req = getattr(job, "experience_requirements", "") or job.experience_level
+        edu_req = getattr(job, "education_requirements", "") or "Not specified"
+
+        jobs_formatted += (
+            f"\n--- JOB #{job.id} ---\n"
+            f"Title: {job.title}\n"
+            f"Company: {job.company}\n"
+            f"Location: {job.location}\n"
+            f"Level/Type: {job.experience_level} ({job.posting_type})\n"
+            f"Required Skills: {req_skills}\n"
+            f"Preferred Skills: {pref_skills}\n"
+            f"Experience Requirements: {exp_req}\n"
+            f"Education Requirements: {edu_req}\n"
+            f"Responsibilities: {resp}\n"
+            f"Qualifications: {quals}\n"
+            f"Description: {job.description[:300]}...\n"
+        )
 
     prompt = f"""You are an expert AI Career Coach matching candidate profiles with internship and job opportunities.
 
@@ -141,7 +167,7 @@ JSON format (respond with one object per job, in an array like this):
     # 1. Try Gemini
     if HAS_GENAI and GOOGLE_API_KEY:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-3.6-flash")
             response = model.generate_content(prompt)
             raw_output = response.text.strip()
             parsed = _parse_json_string(raw_output)

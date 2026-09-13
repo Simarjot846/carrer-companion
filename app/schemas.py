@@ -89,8 +89,13 @@ class JobPostingOut(BaseModel):
     title: str
     company: str
     description: str
+    responsibilities: Optional[str] = None
     required_skills: List[str]
+    preferred_skills: Optional[List[str]] = []
+    qualifications: Optional[str] = None
     experience_level: str
+    experience_requirements: Optional[str] = None
+    education_requirements: Optional[str] = None
     location: str
     posting_type: str
     created_at: datetime
@@ -104,8 +109,13 @@ class JobMatchOut(BaseModel):
     title: str
     company: str
     description: str
+    responsibilities: Optional[str] = None
     required_skills: List[str]
+    preferred_skills: Optional[List[str]] = []
+    qualifications: Optional[str] = None
     experience_level: str
+    experience_requirements: Optional[str] = None
+    education_requirements: Optional[str] = None
     location: str
     posting_type: str
     match_score: int

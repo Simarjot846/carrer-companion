@@ -1498,30 +1498,133 @@ def seed_job_postings(db: Session = None, force_reseed: bool = True) -> int:
         db = SessionLocal()
         should_close = True
 
-    try:
-        # Create tables if not present
-        Base.metadata.create_all(bind=engine)
+def enrich_and_validate_postings(raw_postings: list) -> tuple:
+    """
+    Deduplicates raw postings (by title + company), checks field completeness,
+    and enriches missing M2.1 schema fields with domain-aware synthetic defaults.
+    Returns (valid_postings, removed_count).
+    """
+    seen_keys = set()
+    valid_postings = []
+    removed_count = 0
 
+    required_keys = ["title", "company", "description", "required_skills", "experience_level", "location", "posting_type"]
+
+    for item in raw_postings:
+        # Check required fields completeness
+        is_incomplete = any(not item.get(k) for k in required_keys)
+        if is_incomplete:
+            removed_count += 1
+            continue
+
+        # Check title + company duplicate
+        key = (item["title"].strip().lower(), item["company"].strip().lower())
+        if key in seen_keys:
+            removed_count += 1
+            continue
+
+        seen_keys.add(key)
+
+        # Enrich missing M2.1 fields with realistic domain-aware synthetic defaults
+        enriched = dict(item)
+
+        if not enriched.get("responsibilities"):
+            title_lower = item["title"].lower()
+            if "backend" in title_lower or "software" in title_lower or "developer" in title_lower:
+                enriched["responsibilities"] = "Design and maintain REST microservices, optimize database queries, write automated tests, and participate in code reviews."
+            elif "frontend" in title_lower or "web" in title_lower or "mobile" in title_lower or "ios" in title_lower or "android" in title_lower:
+                enriched["responsibilities"] = "Develop responsive user interface components, integrate REST/GraphQL APIs, write unit tests, and collaborate with product designers."
+            elif "data" in title_lower or "analytics" in title_lower or "bi" in title_lower:
+                enriched["responsibilities"] = "Build data transformation pipelines, query analytical SQL databases, design executive dashboards, and conduct statistical analysis."
+            elif "machine learning" in title_lower or "ml" in title_lower or "ai" in title_lower or "nlp" in title_lower or "vision" in title_lower:
+                enriched["responsibilities"] = "Experiment with model architectures, process training datasets, build evaluation benchmarks, and containerize inference endpoints."
+            elif "product" in title_lower or "apm" in title_lower:
+                enriched["responsibilities"] = "Draft product requirement documents (PRDs), run user research interviews, prioritize engineering sprint backlogs, and monitor KPIs."
+            elif "design" in title_lower or "ux" in title_lower or "ui" in title_lower:
+                enriched["responsibilities"] = "Create high-fidelity interactive wireframes in Figma, conduct usability tests, maintain design tokens, and refine user flows."
+            elif "marketing" in title_lower or "devrel" in title_lower:
+                enriched["responsibilities"] = "Author technical tutorials, build sample code projects, engage developer communities, and analyze campaign conversion metrics."
+            else:
+                enriched["responsibilities"] = "Collaborate with cross-functional engineering teams to build, test, and deploy software features and system documentation."
+
+        if not enriched.get("preferred_skills"):
+            req_skills = item.get("required_skills", [])
+            if "Python" in req_skills:
+                enriched["preferred_skills"] = ["Docker", "Kubernetes", "AWS"]
+            elif "React" in req_skills or "TypeScript" in req_skills:
+                enriched["preferred_skills"] = ["Next.js", "Tailwind CSS", "GraphQL"]
+            elif "SQL" in req_skills:
+                enriched["preferred_skills"] = ["Snowflake", "Airflow", "dbt"]
+            elif "PyTorch" in req_skills:
+                enriched["preferred_skills"] = ["Hugging Face", "MLflow", "ONNX"]
+            elif "Figma" in req_skills:
+                enriched["preferred_skills"] = ["Design Systems", "Prototyping", "User Research"]
+            else:
+                enriched["preferred_skills"] = ["Git", "Linux", "CI/CD"]
+
+        if not enriched.get("qualifications"):
+            enriched["qualifications"] = "Strong analytical and problem-solving skills, solid understanding of software engineering fundamentals, and effective team communication."
+
+        if not enriched.get("experience_requirements"):
+            exp_lvl = item.get("experience_level", "Internship")
+            if "intern" in exp_lvl.lower() or "internship" in item.get("posting_type", "").lower():
+                enriched["experience_requirements"] = "0-1 years of relevant project or academic coursework experience."
+            else:
+                enriched["experience_requirements"] = "1-2 years of relevant professional or internship experience."
+
+        if not enriched.get("education_requirements"):
+            title_lower = item["title"].lower()
+            if "design" in title_lower or "ux" in title_lower:
+                enriched["education_requirements"] = "Pursuing or completed B.S. or B.F.A. in HCI, Product Design, Graphic Design, or related field."
+            elif "product" in title_lower or "marketing" in title_lower:
+                enriched["education_requirements"] = "Pursuing or completed B.S. or B.A. in Computer Science, Business, Marketing, or related field."
+            else:
+                enriched["education_requirements"] = "Pursuing or completed B.S. in Computer Science, Data Science, Software Engineering, or related technical field."
+
+        valid_postings.append(enriched)
+
+    return valid_postings, removed_count
+
+
+def seed_job_postings(db: Session = None, force_reseed: bool = True):
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
+
+    try:
         if force_reseed:
-            db.query(JobPosting).delete()
-            db.commit()
-            print("Cleared existing job postings from database.")
+            # Drop old table to recreate with new M2.1 columns cleanly in SQLite/PostgreSQL
+            try:
+                JobPosting.__table__.drop(bind=engine, checkfirst=True)
+            except Exception as e:
+                print(f"Notice during table drop: {e}")
+            Base.metadata.create_all(bind=engine)
+            print("Cleared existing job postings and updated table schema.")
 
         existing_count = db.query(JobPosting).count()
         if existing_count > 0 and not force_reseed:
             print(f"Database already contains {existing_count} job postings. Skipping seed.")
             return existing_count
 
-        print(f"Generating vector embeddings and inserting {len(RAW_JOB_POSTINGS)} job postings...")
+        # Run deduplication and validation step
+        valid_postings, removed_count = enrich_and_validate_postings(RAW_JOB_POSTINGS)
+        print(f"Deduplication & Validation: Removed {removed_count} duplicate/incomplete postings.")
+        print(f"Generating vector embeddings and inserting {len(valid_postings)} verified job postings...")
 
         postings_to_add = []
-        for i, item in enumerate(RAW_JOB_POSTINGS, 1):
+        for i, item in enumerate(valid_postings, 1):
             job = JobPosting(
                 title=item["title"],
                 company=item["company"],
                 description=item["description"],
+                responsibilities=item["responsibilities"],
                 required_skills=item["required_skills"],
+                preferred_skills=item["preferred_skills"],
+                qualifications=item["qualifications"],
                 experience_level=item["experience_level"],
+                experience_requirements=item["experience_requirements"],
+                education_requirements=item["education_requirements"],
                 location=item["location"],
                 posting_type=item["posting_type"],
             )
@@ -1530,14 +1633,14 @@ def seed_job_postings(db: Session = None, force_reseed: bool = True) -> int:
             job.embedding = get_embedding(embedding_text, input_type="document")
             postings_to_add.append(job)
 
-            if i % 20 == 0 or i == len(RAW_JOB_POSTINGS):
-                print(f"Processed embeddings for {i}/{len(RAW_JOB_POSTINGS)} postings...")
+            if i % 20 == 0 or i == len(valid_postings):
+                print(f"Processed embeddings for {i}/{len(valid_postings)} postings...")
 
         db.bulk_save_objects(postings_to_add)
         db.commit()
 
         total_seeded = db.query(JobPosting).count()
-        print(f"Successfully seeded {total_seeded} job postings into database!")
+        print(f"Successfully seeded {total_seeded} job postings into database with complete M2.1 schema!")
         return total_seeded
 
     finally:

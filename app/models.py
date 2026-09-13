@@ -10,6 +10,7 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False, index=True)
+    qualifications = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -97,8 +98,13 @@ class JobPosting(Base):
     title = Column(String, nullable=False, index=True)
     company = Column(String, nullable=False, index=True)
     description = Column(Text, nullable=False)
+    responsibilities = Column(Text, nullable=True)
     required_skills = Column(JSON, nullable=False)  # list of strings
+    preferred_skills = Column(JSON, nullable=True)  # list of strings
+    qualifications = Column(Text, nullable=True)
     experience_level = Column(String, nullable=False, index=True)
+    experience_requirements = Column(Text, nullable=True)
+    education_requirements = Column(Text, nullable=True)
     location = Column(String, nullable=False)
     posting_type = Column(String, nullable=False, index=True)  # internship / full-time
     created_at = Column(DateTime, default=datetime.utcnow)

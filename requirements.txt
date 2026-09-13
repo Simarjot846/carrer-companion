@@ -8,5 +8,8 @@ email-validator==2.2.0
 python-multipart==0.0.9
 pymupdf==1.24.10
 google-generativeai==0.8.6
+sentence-transformers==3.3.1
+torch>=2.2.0
+numpy>=1.24.0
 
 
