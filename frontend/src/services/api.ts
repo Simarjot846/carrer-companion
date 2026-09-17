@@ -1,4 +1,4 @@
-import type { Student, StudentProfile, StudentMatchesResponse } from '../types';
+import type { Student, StudentProfile, StudentMatchesResponse, SkillGapResponse, CustomizationResponse, InterviewPrepResponse, AssistantChatResponse, ChatTurn } from '../types';
 
 const API_BASE = '/api'; // Proxied to http://localhost:8000 via Vite config
 
@@ -60,4 +60,54 @@ export async function getStudentMatches(
 
 export async function seedJobPostings(): Promise<void> {
   await fetch(`${API_BASE}/jobs/seed`, { method: 'POST' });
+}
+
+// ---------------------------------------------------------------------------
+// M3 Agent API calls
+// ---------------------------------------------------------------------------
+
+export async function getSkillGap(studentId: number, jobId: number): Promise<SkillGapResponse> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/skill-gap/${jobId}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Skill gap analysis failed' }));
+    throw new Error(errData.detail || 'Skill gap analysis failed');
+  }
+  return res.json();
+}
+
+export async function getCustomization(studentId: number, jobId: number): Promise<CustomizationResponse> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/customize/${jobId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Customization generation failed' }));
+    throw new Error(errData.detail || 'Customization generation failed');
+  }
+  return res.json();
+}
+
+export async function getInterviewPrep(studentId: number, jobId: number): Promise<InterviewPrepResponse> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/interview-prep/${jobId}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Interview prep generation failed' }));
+    throw new Error(errData.detail || 'Interview prep generation failed');
+  }
+  return res.json();
+}
+
+export async function sendAssistantMessage(
+  studentId: number,
+  message: string,
+  history: ChatTurn[]
+): Promise<AssistantChatResponse> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/assistant/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({ detail: 'Assistant chat failed' }));
+    throw new Error(errData.detail || 'Assistant chat failed');
+  }
+  return res.json();
 }

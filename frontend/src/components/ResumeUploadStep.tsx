@@ -35,10 +35,14 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (profile && profile.resumes && profile.resumes.length > 0) {
+    if (profile?.resumes?.length) {
       const latest = profile.resumes[profile.resumes.length - 1];
-      setParsingStatus(latest.parsing_status as any);
+      // Read-only derived value — no setState needed here
+      if (parsingStatus === 'none' && latest.parsing_status !== 'none') {
+        setParsingStatus(latest.parsing_status as 'pending' | 'success' | 'failed');
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

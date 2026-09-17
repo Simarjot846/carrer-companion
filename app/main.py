@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import Base, engine
-from app.routers import students, resumes, jobs
+from app.routers import students, resumes, jobs, agents
 
 # Creates tables on startup if they don't exist yet.
 Base.metadata.create_all(bind=engine)
@@ -24,6 +24,7 @@ app.add_middleware(
 app.include_router(students.router)
 app.include_router(resumes.router)
 app.include_router(jobs.router)
+app.include_router(agents.router)
 
 
 @app.get("/")

@@ -130,3 +130,116 @@ class StudentMatchesResponse(BaseModel):
     total_matches: int
     matches: List[JobMatchOut]
 
+
+# ---------------------------------------------------------------------------
+# M3.1 — Skill Gap Analysis
+# ---------------------------------------------------------------------------
+
+class GapItem(BaseModel):
+    skill: Optional[str] = None
+    area: Optional[str] = None
+    why_it_matters: str
+    recommendation: str
+
+
+class SkillGapResponse(BaseModel):
+    student_id: int
+    job_id: int
+    student_name: str
+    job_title: str
+    company: str
+    critical_missing: List[GapItem] = []
+    partially_demonstrated: List[GapItem] = []
+    preferred_gaps: List[GapItem] = []
+    experience_gaps: List[GapItem] = []
+    qualification_gaps: List[GapItem] = []
+    overall_readiness_score: int
+    readiness_summary: str
+
+
+# ---------------------------------------------------------------------------
+# M3.2 — Resume & Cover Letter Customization
+# ---------------------------------------------------------------------------
+
+class RewrittenBullet(BaseModel):
+    original: str
+    suggested: str
+    change_note: str
+
+
+class RelevantExperience(BaseModel):
+    title: str
+    organization: str
+    why_relevant: str
+
+
+class RelevantProject(BaseModel):
+    title: str
+    why_relevant: str
+
+
+class ResumeCustomization(BaseModel):
+    prioritized_skills: List[str] = []
+    relevant_experiences: List[RelevantExperience] = []
+    relevant_projects: List[RelevantProject] = []
+    rewritten_bullets: List[RewrittenBullet] = []
+    section_order_recommendation: List[str] = []
+    tailoring_notes: str = ""
+
+
+class CoverLetter(BaseModel):
+    subject_line: str
+    body: str
+    hallucination_check: bool = True
+
+
+class CustomizationResponse(BaseModel):
+    student_id: int
+    job_id: int
+    student_name: str
+    job_title: str
+    company: str
+    resume_customization: ResumeCustomization
+    cover_letter: CoverLetter
+
+
+# ---------------------------------------------------------------------------
+# M3.3 — Interview Preparation
+# ---------------------------------------------------------------------------
+
+class InterviewQuestion(BaseModel):
+    question: str
+    prep_guidance: str
+
+
+class InterviewPrepResponse(BaseModel):
+    student_id: int
+    job_id: int
+    student_name: str
+    job_title: str
+    company: str
+    technical_questions: List[InterviewQuestion] = []
+    resume_questions: List[InterviewQuestion] = []
+    project_questions: List[InterviewQuestion] = []
+    role_questions: List[InterviewQuestion] = []
+    hr_questions: List[InterviewQuestion] = []
+    topics_to_revise: List[str] = []
+
+
+# ---------------------------------------------------------------------------
+# M3.4 — Career Assistant Chat
+# ---------------------------------------------------------------------------
+
+class ChatTurn(BaseModel):
+    role: str   # "user" | "assistant"
+    content: str
+
+
+class AssistantChatRequest(BaseModel):
+    message: str
+    history: List[ChatTurn] = []
+
+
+class AssistantChatResponse(BaseModel):
+    reply: str
+    updated_history: List[ChatTurn] = []

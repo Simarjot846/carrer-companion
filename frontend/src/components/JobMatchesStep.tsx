@@ -11,6 +11,9 @@ import {
   RefreshCw,
   CheckCircle2,
   Info,
+  AlertTriangle,
+  FileText,
+  Mic,
 } from 'lucide-react';
 import type { Student, StudentMatchesResponse, JobMatch } from '../types';
 import { getStudentMatches } from '../services/api';
@@ -18,9 +21,10 @@ import { JobDetailModal } from './JobDetailModal';
 
 interface JobMatchesStepProps {
   student: Student;
+  onOpenAgent: (job: JobMatch, agent: 'skill-gap' | 'customize' | 'interview-prep') => void;
 }
 
-export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student }) => {
+export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student, onOpenAgent }) => {
   const [matchesData, setMatchesData] = useState<StudentMatchesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +49,21 @@ export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student }) => {
   };
 
   useEffect(() => {
-    fetchMatches();
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getStudentMatches(student.id, 10);
+        if (!cancelled) setMatchesData(res);
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || 'Failed to calculate job matches.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
   }, [student.id]);
 
   const filteredMatches = (matchesData?.matches || []).filter((job) => {
@@ -89,15 +107,25 @@ export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student }) => {
         </button>
       </div>
 
-      {/* Loading State */}
+      {/* Loading */}
       {loading && (
-        <div className="bg-white border border-[#E2E0D5] rounded-2xl p-12 text-center space-y-4 shadow-sm font-sans">
-          <div className="h-12 w-12 mx-auto border-3 border-[#2C5F2D] border-t-transparent rounded-full animate-spin" />
-          <div>
-            <h3 className="text-base font-serif font-bold text-[#171B16]">Evaluating Candidate Fit...</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Embedding profile vector → pgvector cosine similarity → Gemini fit scoring & skill gap analysis.
-
+        <div className="space-y-4 animate-fade-in">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-white border border-[#E2E0D5] rounded-2xl p-6 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="skeleton h-5 w-48 rounded-lg" />
+                <div className="skeleton h-7 w-20 rounded-full" />
+              </div>
+              <div className="skeleton h-3 w-full rounded-lg" />
+              <div className="skeleton h-3 w-3/4 rounded-lg" />
+              <div className="flex gap-2 pt-1">
+                {[...Array(4)].map((_, j) => <div key={j} className="skeleton h-6 w-16 rounded-md" />)}
+              </div>
+            </div>
+          ))}
+          <div className="text-center pt-2">
+            <p className="text-xs text-slate-400 animate-pulse">
+              Embedding profile · Vector search · Gemini scoring...
             </p>
           </div>
         </div>
@@ -238,7 +266,7 @@ export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student }) => {
                   </div>
 
                   {/* AI Recommendation Reasoning Callout */}
-                  <div className="p-3.5 rounded-xl bg-[#FAF9F5] border border-[#2C5F2D]/20 text-xs text-slate-700 flex items-start space-x-2.5">
+                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#FAF9F5] to-[#F3F2EC] border border-[#2C5F2D]/15 text-xs text-slate-700 flex items-start space-x-2.5">
                     <Sparkles className="h-4 w-4 text-[#C9A63B] shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <span className="font-bold text-[#2C5F2D]">AI Recommendation Rationale:</span>
@@ -293,12 +321,35 @@ export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student }) => {
                   </div>
 
                   {/* Card Action */}
-                  <div className="pt-2 flex justify-end border-t border-[#E2E0D5]">
+                  <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-t border-[#E2E0D5]">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => onOpenAgent(job, 'skill-gap')}
+                        className="flex items-center space-x-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#C85A32]/10 text-[#C85A32] border border-[#C85A32]/20 hover:bg-[#C85A32]/20 transition-all cursor-pointer"
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>Skill Gap</span>
+                      </button>
+                      <button
+                        onClick={() => onOpenAgent(job, 'customize')}
+                        className="flex items-center space-x-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#2C5F2D]/10 text-[#2C5F2D] border border-[#2C5F2D]/20 hover:bg-[#2C5F2D]/20 transition-all cursor-pointer"
+                      >
+                        <FileText className="h-3 w-3" />
+                        <span>Tailor Resume</span>
+                      </button>
+                      <button
+                        onClick={() => onOpenAgent(job, 'interview-prep')}
+                        className="flex items-center space-x-1.5 text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-[#C9A63B]/15 text-[#8A6D1D] border border-[#C9A63B]/30 hover:bg-[#C9A63B]/25 transition-all cursor-pointer"
+                      >
+                        <Mic className="h-3 w-3" />
+                        <span>Interview Prep</span>
+                      </button>
+                    </div>
                     <button
                       onClick={() => setSelectedJob(job)}
                       className="text-xs text-[#2C5F2D] hover:text-[#234E25] font-bold flex items-center space-x-1 group-hover:translate-x-1 transition-all cursor-pointer"
                     >
-                      <span>View Full Job Posting & Preparation Hints</span>
+                      <span>Full details</span>
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
