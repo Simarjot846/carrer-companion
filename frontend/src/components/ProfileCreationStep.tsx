@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus, ArrowRight, Sparkles, UserCheck } from 'lucide-react';
 import type { Student } from '../types';
 import { createStudent } from '../services/api';
+import { AlertBanner } from './ui';
 
 interface ProfileCreationStepProps {
   onProfileCreated: (student: Student) => void;
@@ -65,145 +66,128 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in py-4">
-      
-      {/* Header */}
-      <div className="text-center space-y-3">
-        <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-[#2C5F2D]/10 text-[#2C5F2D] text-xs font-semibold">
-          <Sparkles className="h-3.5 w-3.5 text-[#C9A63B]" />
-          <span>Step 1 of 3 · Candidate Profile Creation</span>
+    <div className="space-y-12 animate-fade-in">
+      <div className="text-center space-y-4">
+        <div className="ds-kicker">
+          <Sparkles className="h-4 w-4 text-gold" />
+          <span>Step 1 of 3 · Profile</span>
         </div>
-        <h2 className="text-3xl sm:text-4xl font-serif font-bold text-[#171B16]">
-          Create Candidate Profile
-        </h2>
-        <p className="text-slate-600 text-sm max-w-xl mx-auto font-sans">
-          Enter your candidate credentials below or select a sample candidate profile for instant live demoing.
+        <h1 className="ds-h1">Create your candidate profile</h1>
+        <p className="ds-lead max-w-xl mx-auto">
+          Start with your name and email, or pick a sample candidate if you are running a demo.
         </p>
       </div>
 
-      {/* Main Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
-        
-        {/* Form Card */}
-        <div className="md:col-span-7 bg-white border border-[#E2E0D5] rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-          <div className="flex items-center space-x-3 pb-4 border-b border-[#E2E0D5]">
-            <div className="h-10 w-10 rounded-full bg-[#2C5F2D]/10 text-[#2C5F2D] flex items-center justify-center">
-              <UserPlus className="h-5 w-5" />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        <div className="lg:col-span-7 ds-card p-8 sm:p-10 space-y-8">
+          <div className="flex items-center gap-4 pb-6 border-b border-line">
+            <div className="h-12 w-12 rounded-full bg-forest/10 text-forest flex items-center justify-center">
+              <UserPlus className="h-6 w-6" />
             </div>
-            <div className="text-left">
-              <h3 className="text-base font-serif font-bold text-[#171B16]">New Candidate Details</h3>
-              <p className="text-xs text-slate-500 font-sans">Your profile is the single source of truth for matching</p>
+            <div>
+              <h2 className="ds-h3">New candidate</h2>
+              <p className="ds-caption mt-1">This profile is the source of truth for matching.</p>
             </div>
           </div>
 
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-sans">
+            <AlertBanner tone="error" title="Could not create profile">
               {error}
-            </div>
+            </AlertBanner>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 font-sans text-left">
+          <form onSubmit={handleSubmit} className="space-y-6 text-left">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name</label>
+              <label className="ds-label">Full name</label>
               <input
                 type="text"
                 required
                 placeholder="e.g. Alex Chen"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#FAF9F5] border border-[#D5D3C5] rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2C5F2D] focus:border-[#2C5F2D] transition-all"
+                className="ds-input"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Email Address</label>
+              <label className="ds-label">Email address</label>
               <input
                 type="email"
                 required
                 placeholder="e.g. alex.chen@university.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 bg-[#FAF9F5] border border-[#D5D3C5] rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2C5F2D] focus:border-[#2C5F2D] transition-all"
+                className="ds-input"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading || !name.trim() || !email.trim()}
-              className="w-full py-3.5 px-4 bg-[#2C5F2D] hover:bg-[#234E25] disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center justify-center space-x-2 shadow-md shadow-[#2C5F2D]/20 transition-all cursor-pointer"
+              className="ds-btn-primary w-full"
             >
               {loading ? (
-                <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="ds-spinner !border-white/30 !border-t-white" />
               ) : (
                 <>
-                  <span>Create Candidate Profile</span>
-                  <ArrowRight className="h-4 w-4 text-[#C9A63B]" />
+                  <span>Create candidate profile</span>
+                  <ArrowRight className="h-5 w-5 text-gold" />
                 </>
               )}
             </button>
           </form>
         </div>
 
-        {/* Demo Presets Sidebar */}
-        <div className="md:col-span-5 space-y-4 text-left">
-          
-          <div className="bg-white border border-[#E2E0D5] rounded-2xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2">
-              <Sparkles className="h-4 w-4 text-[#C9A63B]" />
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider font-sans">
-                Quick Demo Presets
-              </h3>
+        <div className="lg:col-span-5 space-y-6">
+          <div className="ds-card p-8 space-y-5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-gold" />
+              <h3 className="text-[18px] font-serif font-bold text-ink">Quick demo presets</h3>
             </div>
-            <p className="text-xs text-slate-500 font-sans">
-              Click any sample candidate below for 1-click live demoing:
-            </p>
+            <p className="ds-body ds-muted">One click loads a sample candidate.</p>
 
-            <div className="space-y-2 font-sans">
+            <div className="space-y-2">
               {PRESET_DEMO_USERS.map((preset) => (
                 <button
                   key={preset.email}
                   onClick={() => handleQuickPreset(preset.name, preset.email)}
                   disabled={loading}
-                  className="w-full text-left p-3 rounded-xl bg-[#FAF9F5] hover:bg-white border border-[#E2E0D5] hover:border-[#2C5F2D]/50 transition-all group flex items-center justify-between cursor-pointer shadow-2xs"
+                  className="w-full text-left p-4 rounded-[16px] ds-card-inset hover:border-forest/40 transition-all group flex items-center justify-between cursor-pointer disabled:opacity-50"
                 >
                   <div>
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-[#2C5F2D] transition-colors">
+                    <div className="text-[16px] font-semibold text-ink group-hover:text-forest">
                       {preset.name}
                     </div>
-                    <div className="text-[11px] text-slate-500">{preset.role}</div>
+                    <div className="ds-caption mt-1">{preset.role}</div>
                   </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-[#2C5F2D] group-hover:translate-x-0.5 transition-all" />
+                  <ArrowRight className="h-4 w-4 text-stone group-hover:text-forest group-hover:translate-x-0.5 transition-all" />
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Existing Candidates List */}
           {existingStudents.length > 0 && (
-            <div className="bg-white border border-[#E2E0D5] rounded-2xl p-4 shadow-sm space-y-3 font-sans">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center space-x-1.5">
-                <UserCheck className="h-3.5 w-3.5 text-[#2C5F2D]" />
-                <span>Existing Profiles ({existingStudents.length})</span>
+            <div className="ds-card p-8 space-y-4">
+              <h4 className="ds-label !mb-0 flex items-center gap-2">
+                <UserCheck className="h-4 w-4 text-forest" />
+                Existing profiles ({existingStudents.length})
               </h4>
-              <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
                 {existingStudents.map((st) => (
                   <button
                     key={st.id}
                     onClick={() => onSelectExisting(st)}
-                    className="w-full text-left px-3 py-2 rounded-lg bg-[#FAF9F5] hover:bg-[#F3F2EC] border border-[#E2E0D5] text-xs flex items-center justify-between transition-colors cursor-pointer"
+                    className="w-full text-left px-4 py-3 rounded-[14px] ds-card-inset hover:border-forest/30 flex items-center justify-between cursor-pointer"
                   >
-                    <span className="text-slate-800 font-medium">{st.name}</span>
-                    <span className="text-[10px] text-slate-500">{st.email}</span>
+                    <span className="text-[16px] text-ink font-medium">{st.name}</span>
+                    <span className="ds-caption">{st.email}</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
-
         </div>
-
       </div>
-
     </div>
   );
 };

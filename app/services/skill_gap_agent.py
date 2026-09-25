@@ -216,6 +216,7 @@ def _validate_skill_gap_response(parsed: Any) -> Optional[Dict[str, Any]]:
 
 
 def _parse_json(raw: str) -> Any:
+    raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
         if raw.startswith("json"):

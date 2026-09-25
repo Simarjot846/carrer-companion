@@ -368,6 +368,7 @@ def _fallback_cover_letter(student: models.Student, job: models.JobPosting) -> D
 # ---------------------------------------------------------------------------
 
 def _parse_json(raw: str) -> Any:
+    raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
         if raw.startswith("json"):

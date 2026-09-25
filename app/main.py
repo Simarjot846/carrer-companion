@@ -27,6 +27,14 @@ app.include_router(jobs.router)
 app.include_router(agents.router)
 
 
+@app.on_event("startup")
+def startup_event():
+    """Pre-warm sentence-transformers embedding model at server startup."""
+    from app.services.embedding_service import preload_local_model
+    elapsed = preload_local_model()
+    print(f"INFO:     [Startup] Sentence-transformers model (all-MiniLM-L6-v2) pre-warmed in {elapsed:.3f}s")
+
+
 @app.get("/")
 def root():
     return {"status": "ok", "service": "AI Career Companion Agent API"}

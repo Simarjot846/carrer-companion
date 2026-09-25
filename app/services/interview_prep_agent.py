@@ -275,6 +275,7 @@ def _fallback_prep(student: models.Student, job: models.JobPosting) -> Dict[str,
 # ---------------------------------------------------------------------------
 
 def _parse_json(raw: str) -> Any:
+    raw = raw.strip()
     if raw.startswith("```"):
         raw = raw.strip("`")
         if raw.startswith("json"):

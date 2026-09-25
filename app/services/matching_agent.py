@@ -18,6 +18,27 @@ except Exception:
 
 
 
+# ---------------------------------------------------------------------------
+# In-Memory Cache (FIX 4)
+# ---------------------------------------------------------------------------
+_MATCHES_CACHE: Dict[int, List[Dict[str, Any]]] = {}
+
+def get_cached_matches(student_id: int) -> List[Dict[str, Any]] | None:
+    """Returns cached matches for student if present."""
+    return _MATCHES_CACHE.get(student_id)
+
+def set_cached_matches(student_id: int, matches: List[Dict[str, Any]]) -> None:
+    """Stores matches in cache for student."""
+    _MATCHES_CACHE[student_id] = matches
+
+def clear_matches_cache(student_id: int | None = None) -> None:
+    """Clears in-memory matches cache."""
+    if student_id is not None:
+        _MATCHES_CACHE.pop(student_id, None)
+    else:
+        _MATCHES_CACHE.clear()
+
+
 def format_candidate_profile_text(student: models.Student) -> str:
     """Formats student profile into a single text representation for embedding generation."""
     skills_str = ", ".join([s.name for s in student.skills]) if student.skills else "None listed"
@@ -36,28 +57,40 @@ def format_candidate_profile_text(student: models.Student) -> str:
     return f"Candidate Name: {student.name}\nSkills: {skills_str}\nEducation: {edu_str}\nExperience: {exp_str}\nProjects: {proj_str}\nQualifications: {qual_str}"
 
 
-def get_job_matches_for_student(student_id: int, db: Session, top_k: int = 10) -> List[Dict[str, Any]]:
+def get_job_matches_for_student(
+    student_id: int,
+    db: Session,
+    top_k: int = 10,
+    force_refresh: bool = False,
+) -> List[Dict[str, Any]]:
     """
     RAG + LLM Matching Pipeline:
-    1. Build candidate profile text & embed it.
-    2. Retrieve top_k candidate jobs via vector similarity search.
-    3. Pass candidate profile + retrieved jobs to the LLM for scoring & missing skills analysis.
-    4. Return ranked list of matched jobs.
+    1. Check in-memory cache if force_refresh is False (FIX 4).
+    2. Build candidate profile text & embed it.
+    3. Retrieve top_k candidate jobs via vector similarity search.
+    4. Pass candidate profile + top 5 retrieved jobs to LLM for scoring & missing skills analysis (FIX 2).
+    5. Return ranked list of matched jobs and populate cache.
     """
+    # FIX 4: In-memory cache hit returns instantly
+    if not force_refresh and student_id in _MATCHES_CACHE:
+        return _MATCHES_CACHE[student_id]
+
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
     if not student:
         raise ValueError(f"Student with ID {student_id} not found.")
 
     profile_text = format_candidate_profile_text(student)
 
-    # Step 1: Embedding + Vector Similarity Search
+    # Step 1: Embedding + Vector Similarity Search (keeps top_k=10 for retrieval)
     profile_vector = get_embedding(profile_text, input_type="query")
     similar_jobs = search_similar_jobs(db, profile_vector, top_k=top_k)
 
     if not similar_jobs:
         return []
 
-    jobs_for_llm = [job for job, vec_sim in similar_jobs]
+    # FIX 2: Only send top 5 candidate jobs to Gemini for scoring (smaller prompt, faster response)
+    llm_top_k = min(5, len(similar_jobs))
+    jobs_for_llm = [job for job, vec_sim in similar_jobs[:llm_top_k]]
 
     # Step 2: LLM Reranking and Scoring
     llm_scores = _score_matches_with_llm(student, profile_text, jobs_for_llm)
@@ -68,8 +101,9 @@ def get_job_matches_for_student(student_id: int, db: Session, top_k: int = 10) -
     results = []
     for job, vec_sim in similar_jobs:
         llm_data = score_map.get(job.id, {})
+        # If scored by LLM, use LLM match score; otherwise fallback to vector similarity percentage
         match_score = llm_data.get("match_score", int(round(vec_sim * 100)))
-        reasoning = llm_data.get("reasoning", "Matches key requirements based on candidate profile analysis.")
+        reasoning = llm_data.get("reasoning", "Ranked based on dense semantic vector similarity.")
         missing_skills = llm_data.get("missing_skills", [])
 
         results.append({
@@ -94,6 +128,9 @@ def get_job_matches_for_student(student_id: int, db: Session, top_k: int = 10) -
 
     # Sort descending by match_score
     results.sort(key=lambda x: x["match_score"], reverse=True)
+
+    # Populate cache (FIX 4)
+    _MATCHES_CACHE[student_id] = results
     return results
 
 
@@ -164,18 +201,22 @@ JSON format (respond with one object per job, in an array like this):
   }}
 ]
 """
-    # 1. Try Gemini
+    # 1. Try Gemini with fastest suitable model variant (FIX 3)
     if HAS_GENAI and GOOGLE_API_KEY:
-        try:
-            model = genai.GenerativeModel("gemini-3.6-flash")
-            response = model.generate_content(prompt)
-            raw_output = response.text.strip()
-            parsed = _parse_json_string(raw_output)
-            validated = _validate_llm_scores(parsed, valid_job_ids)
-            if validated is not None:
-                return validated
-        except Exception as e:
-            print(f"Warning: Gemini matching API call failed ({e}). Using deterministic fallback scoring.")
+        # Priority order: gemini-3.5-flash-lite (fastest, active quota) -> gemini-flash-lite-latest -> gemini-3.6-flash
+        candidate_models = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.6-flash"]
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                raw_output = response.text.strip()
+                parsed = _parse_json_string(raw_output)
+                validated = _validate_llm_scores(parsed, valid_job_ids)
+                if validated is not None:
+                    return validated
+            except Exception as e:
+                print(f"Warning: Gemini ({model_name}) matching API call failed ({e}).")
+                continue
 
     return _fallback_scoring(student, jobs)
 

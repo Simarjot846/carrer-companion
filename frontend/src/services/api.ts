@@ -48,15 +48,18 @@ export async function uploadResume(
 
 export async function getStudentMatches(
   studentId: number,
-  topK: number = 10
+  topK: number = 10,
+  forceRefresh: boolean = false
 ): Promise<StudentMatchesResponse> {
-  const res = await fetch(`${API_BASE}/students/${studentId}/matches?top_k=${topK}`);
+  const url = `${API_BASE}/students/${studentId}/matches?top_k=${topK}${forceRefresh ? '&force_refresh=true' : ''}`;
+  const res = await fetch(url);
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ detail: 'Failed to fetch matches' }));
     throw new Error(errData.detail || 'Failed to calculate job matches');
   }
   return res.json();
 }
+
 
 export async function seedJobPostings(): Promise<void> {
   await fetch(`${API_BASE}/jobs/seed`, { method: 'POST' });

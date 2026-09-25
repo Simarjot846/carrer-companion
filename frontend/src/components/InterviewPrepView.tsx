@@ -8,6 +8,7 @@ import {
   BookOpen,
   CheckSquare,
   Square,
+  Sparkles,
 } from 'lucide-react';
 import type { Student, JobMatch, InterviewPrepResponse, InterviewQuestion } from '../types';
 import { getInterviewPrep } from '../services/api';
@@ -38,31 +39,31 @@ function QuestionAccordion({
   bg: string;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
-  if (questions.length === 0) return <p className="text-xs text-slate-400 italic px-2">No questions generated.</p>;
+  if (questions.length === 0) return <p className="ds-body ds-muted italic px-2">No questions generated.</p>;
 
   return (
-    <div className={`border ${border} rounded-xl overflow-hidden divide-y divide-[#F0EEE8]`}>
+    <div className={`border ${border} rounded-[16px] overflow-hidden divide-y divide-line`}>
       {questions.map((q, i) => (
-        <div key={i} className="bg-white">
+        <div key={i} className="bg-paper">
           <button
             onClick={() => setOpenIdx(openIdx === i ? null : i)}
-            className="w-full flex items-start justify-between px-4 py-3.5 text-left hover:bg-[#FAF9F5] transition-colors cursor-pointer gap-3"
+            className="w-full flex items-start justify-between px-6 py-5 text-left hover:bg-cream transition-colors cursor-pointer gap-4"
           >
-            <div className="flex items-start space-x-2.5 flex-1">
-              <span className={`text-[10px] font-black mt-0.5 shrink-0 ${color}`}>Q{i + 1}</span>
-              <span className="text-sm font-semibold text-[#171B16] leading-snug">{q.question}</span>
+            <div className="flex items-start gap-3 flex-1">
+              <span className={`text-[14px] font-bold mt-1 shrink-0 ${color}`}>Q{i + 1}</span>
+              <span className="text-[18px] font-semibold text-ink leading-snug">{q.question}</span>
             </div>
             {openIdx === i
-              ? <ChevronUp className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-              : <ChevronDown className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />}
+              ? <ChevronUp className="h-5 w-5 text-stone shrink-0 mt-1" />
+              : <ChevronDown className="h-5 w-5 text-stone shrink-0 mt-1" />}
           </button>
           {openIdx === i && (
-            <div className={`px-5 pb-4 pt-1 ${bg} border-t border-[#F0EEE8]`}>
-              <div className="flex items-start space-x-2 text-xs">
-                <BookOpen className="h-3.5 w-3.5 text-[#C9A63B] shrink-0 mt-0.5" />
+            <div className={`px-6 pb-6 pt-2 ${bg} border-t border-line animate-fade-in`}>
+              <div className="flex items-start gap-3 ds-body">
+                <BookOpen className="h-5 w-5 text-gold shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-bold text-slate-700">Prep guidance: </span>
-                  <span className="text-slate-600 leading-relaxed">{q.prep_guidance}</span>
+                  <span className="font-semibold text-ink">Preparation guidance: </span>
+                  <span className="ds-muted">{q.prep_guidance}</span>
                 </div>
               </div>
             </div>
@@ -79,25 +80,42 @@ export const InterviewPrepView: React.FC<InterviewPrepViewProps> = ({ student, j
   const [error, setError] = useState<string | null>(null);
   const [checkedTopics, setCheckedTopics] = useState<Set<number>>(new Set());
 
-  const fetchData = async () => {
-    setLoading(true);
+  const regenerate = () => {
+    setData(null);
     setError(null);
-    try {
-      const result = await getInterviewPrep(student.id, job.job_id);
-      setData(result);
-    } catch (err: any) {
-      setError(err.message || 'Interview prep generation failed.');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    getInterviewPrep(student.id, job.job_id)
+      .then((result) => setData(result))
+      .catch((err: any) => setError(err.message || 'Interview prep generation failed.'))
+      .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, [student.id, job.job_id]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await getInterviewPrep(student.id, job.job_id);
+        if (!cancelled) setData(result);
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || 'Interview prep generation failed.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [student.id, job.job_id]);
 
   const toggleTopic = (i: number) => {
     setCheckedTopics(prev => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) {
+        next.delete(i);
+      } else {
+        next.add(i);
+      }
       return next;
     });
   };
@@ -108,105 +126,96 @@ export const InterviewPrepView: React.FC<InterviewPrepViewProps> = ({ student, j
     : 0;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in py-4 font-sans">
-      {/* Header */}
-      <div className="space-y-2">
-        <button onClick={onBack} className="text-xs text-[#2C5F2D] font-semibold hover:underline cursor-pointer">
-          ← Back to matches
-        </button>
-        <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-[#2C5F2D]/10 text-[#2C5F2D] text-xs font-semibold">
-          <Mic className="h-3.5 w-3.5" />
-          <span>M3.3 · Interview Preparation</span>
+    <div className="space-y-10 animate-fade-in">
+      <div className="space-y-4 text-left">
+        <button onClick={onBack} className="ds-btn-ghost">← Back to matches</button>
+        <div className="ds-kicker">
+          <Mic className="h-4 w-4" />
+          <span>Interview prep</span>
         </div>
-        <h2 className="text-3xl font-serif font-bold text-[#171B16]">
-          Interview Prep: {job.title}
-        </h2>
-        <p className="text-slate-600 text-sm">{job.company} · for {student.name}</p>
+        <h1 className="ds-h1">Interview prep: {job.title}</h1>
+        <p className="ds-lead">{job.company} · for {student.name}</p>
       </div>
 
       {/* Loading */}
       {loading && (
-        <div className="bg-white border border-[#E2E0D5] rounded-2xl p-12 text-center space-y-4 shadow-sm">
-          <div className="h-10 w-10 mx-auto border-2 border-[#2C5F2D] border-t-transparent rounded-full animate-spin" />
-          <div>
-            <p className="text-sm font-serif font-bold text-[#171B16]">Generating your personalised interview prep...</p>
-            <p className="text-xs text-slate-500 mt-1">Gemini AI is building questions from your profile and this role's requirements.</p>
-          </div>
+        <div className="ds-card p-16 text-center space-y-4">
+          <div className="ds-spinner mx-auto" />
+          <p className="ds-h3">Building your interview package…</p>
+          <p className="ds-body ds-muted">Questions are drawn from this role and your verified profile.</p>
         </div>
       )}
 
       {/* Error */}
       {error && !loading && (
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 space-y-2">
-          <div className="flex items-center space-x-2 text-rose-700 font-bold text-xs">
-            <AlertCircle className="h-4 w-4" /><span>Generation Error</span>
+        <div className="ds-alert ds-alert-error">
+          <AlertCircle className="ds-alert-icon" />
+          <div className="ds-alert-copy">
+            <strong>Generation error</strong>
+            <div>{error}</div>
+            <button onClick={regenerate} className="ds-btn-ghost mt-2">Retry</button>
           </div>
-          <p className="text-xs text-rose-700">{error}</p>
-          <button onClick={fetchData} className="text-xs text-[#2C5F2D] font-semibold underline cursor-pointer">Retry</button>
         </div>
       )}
 
       {!loading && !error && data && (
-        <div className="space-y-6">
-          {/* Summary bar */}
-          <div className="bg-white border border-[#E2E0D5] rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div className="space-y-8">
+          <div className="ds-card p-8 flex flex-wrap items-center justify-between gap-4 text-left">
             <div>
-              <p className="text-sm font-serif font-bold text-[#171B16]">{totalQ} interview questions generated</p>
-              <p className="text-xs text-slate-500">Click any question to reveal the prep guidance. Questions are grounded in your actual profile.</p>
+              <p className="ds-h3">{totalQ} preparation questions</p>
+              <p className="ds-body ds-muted mt-2">Open any question for preparation guidance. All of them stay inside your real experience.</p>
             </div>
-            <button
-              onClick={fetchData}
-              className="flex items-center space-x-1.5 text-xs text-slate-600 hover:text-slate-900 cursor-pointer px-3 py-2 rounded-lg bg-[#FAF9F5] border border-[#E2E0D5]"
-            >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>Regenerate</span>
+            <button onClick={regenerate} className="ds-btn-secondary">
+              <RefreshCw className="h-4 w-4" />
+              Regenerate
             </button>
           </div>
 
-          {/* Question sections */}
-          {SECTION_CONFIG.map(({ key, label, color, border, bg }) => {
-            const questions = data[key];
-            if (questions.length === 0) return null;
-            return (
-              <div key={key} className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <h3 className={`text-sm font-bold ${color}`}>{label}</h3>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">{questions.length}</span>
+          <div className="space-y-8 text-left stagger-children">
+            {SECTION_CONFIG.map(({ key, label, color, border, bg }) => {
+              const questions = data[key];
+              if (questions.length === 0) return null;
+              return (
+                <div key={key} className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <h3 className={`ds-h3 ${color}`}>{label}</h3>
+                    <span className="ds-chip ds-chip-muted">{questions.length}</span>
+                  </div>
+                  <QuestionAccordion questions={questions} color={color} border={border} bg={bg} />
                 </div>
-                <QuestionAccordion questions={questions} color={color} border={border} bg={bg} />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
-          {/* Topics to revise — checklist */}
           {data.topics_to_revise.length > 0 && (
-            <div className="bg-white border border-[#E2E0D5] rounded-2xl p-6 shadow-sm space-y-4">
-              <div className="flex items-center space-x-2">
-                <BookOpen className="h-4 w-4 text-[#2C5F2D]" />
-                <h3 className="font-serif font-bold text-[#171B16]">Topics to Revise Before Interview</h3>
+            <div className="ds-card p-8 space-y-5 text-left">
+              <div className="flex items-center gap-3">
+                <BookOpen className="h-6 w-6 text-forest" />
+                <h3 className="ds-h3">Topics to revise</h3>
               </div>
-              <p className="text-xs text-slate-500">Derived from your skill gaps and this role's technical requirements. Check off as you go.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <p className="ds-body ds-muted">From your gaps and this role’s requirements. Check them off as you go.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {data.topics_to_revise.map((topic, i) => (
                   <button
                     key={i}
                     onClick={() => toggleTopic(i)}
-                    className={`flex items-center space-x-2.5 p-3 rounded-xl border text-xs font-medium text-left transition-all cursor-pointer ${
+                    className={`flex items-center gap-3 p-4 rounded-[16px] border text-[16px] font-medium text-left cursor-pointer ${
                       checkedTopics.has(i)
-                        ? 'bg-[#2C5F2D]/10 border-[#2C5F2D]/30 text-[#2C5F2D]'
-                        : 'bg-[#FAF9F5] border-[#E2E0D5] text-slate-700 hover:border-[#2C5F2D]/30'
+                        ? 'bg-forest/10 border-forest/30 text-forest'
+                        : 'bg-cream border-line text-ink hover:border-forest/30'
                     }`}
                   >
                     {checkedTopics.has(i)
-                      ? <CheckSquare className="h-4 w-4 shrink-0" />
-                      : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
+                      ? <CheckSquare className="h-5 w-5 shrink-0" />
+                      : <Square className="h-5 w-5 shrink-0 text-stone" />}
                     <span>{topic}</span>
                   </button>
                 ))}
               </div>
               {checkedTopics.size > 0 && (
-                <p className="text-xs text-[#2C5F2D] font-semibold">
-                  {checkedTopics.size}/{data.topics_to_revise.length} topics reviewed ✓
+                <p className="ds-body text-forest font-semibold flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-gold" />
+                  {checkedTopics.size}/{data.topics_to_revise.length} topics reviewed
                 </p>
               )}
             </div>

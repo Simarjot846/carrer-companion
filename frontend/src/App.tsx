@@ -18,7 +18,6 @@ export function App() {
   const [activeStudent, setActiveStudent] = useState<Student | null>(null);
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [existingStudents, setExistingStudents] = useState<Student[]>([]);
-  // Holds the job selected in JobMatchesStep for M3 agent views
   const [selectedJob, setSelectedJob] = useState<JobMatch | null>(null);
 
   useEffect(() => {
@@ -47,7 +46,8 @@ export function App() {
     try {
       const p = await getStudentProfile(student.id);
       setProfile(p);
-      setCurrentStep(p.resumes && p.resumes.length > 0 ? 'matches' : 'upload');
+      const hasContent = (p.resumes && p.resumes.length > 0) || (p.skills && p.skills.length > 0);
+      setCurrentStep(hasContent ? 'matches' : 'upload');
     } catch {
       setCurrentStep('upload');
     }
@@ -77,7 +77,6 @@ export function App() {
     loadExistingStudents();
   };
 
-  // Called from JobMatchesStep when user clicks an M3 agent button on a job card
   const handleOpenAgent = (job: JobMatch, agent: 'skill-gap' | 'customize' | 'interview-prep') => {
     setSelectedJob(job);
     setCurrentStep(agent);
@@ -88,68 +87,70 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F5] text-[#171B16] flex flex-col font-sans selection:bg-[#2C5F2D] selection:text-white">
+    <div className="min-h-screen bg-cream text-ink flex flex-col font-sans selection:bg-forest selection:text-white">
       <Navbar
         currentStep={currentStep}
         activeStudent={activeStudent}
         onReset={handleReset}
+        onGetStarted={() => setCurrentStep('profile')}
         onSelectStep={(step) => {
-          // Navigating away from an M3 agent view back to matches is fine
           if (['skill-gap', 'customize', 'interview-prep'].includes(step) && !selectedJob) return;
           setCurrentStep(step);
         }}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-8">
-        {currentStep === 'landing' && (
-          <LandingPage onGetStarted={() => setCurrentStep('profile')} />
-        )}
+      {currentStep === 'landing' ? (
+        <LandingPage onGetStarted={() => setCurrentStep('profile')} />
+      ) : (
+        <main className="flex-1 w-full ds-shell py-16 lg:py-20">
+          {currentStep === 'profile' && (
+            <ProfileCreationStep
+              onProfileCreated={handleProfileCreated}
+              existingStudents={existingStudents}
+              onSelectExisting={handleSelectStudent}
+            />
+          )}
 
-        {currentStep === 'profile' && (
-          <ProfileCreationStep
-            onProfileCreated={handleProfileCreated}
-            existingStudents={existingStudents}
-            onSelectExisting={handleSelectStudent}
-          />
-        )}
+          {currentStep === 'upload' && activeStudent && (
+            <ResumeUploadStep
+              student={activeStudent}
+              profile={profile}
+              onProfileUpdated={handleProfileUpdated}
+              onProceedToMatches={() => setCurrentStep('matches')}
+            />
+          )}
 
-        {currentStep === 'upload' && activeStudent && (
-          <ResumeUploadStep
-            student={activeStudent}
-            profile={profile}
-            onProfileUpdated={handleProfileUpdated}
-            onProceedToMatches={() => setCurrentStep('matches')}
-          />
-        )}
+          {currentStep === 'matches' && activeStudent && (
+            <JobMatchesStep
+              student={activeStudent}
+              onOpenAgent={handleOpenAgent}
+            />
+          )}
 
-        {currentStep === 'matches' && activeStudent && (
-          <JobMatchesStep
-            student={activeStudent}
-            onOpenAgent={handleOpenAgent}
-          />
-        )}
+          {currentStep === 'skill-gap' && activeStudent && selectedJob && (
+            <SkillGapView student={activeStudent} job={selectedJob} onBack={backToMatches} />
+          )}
 
-        {currentStep === 'skill-gap' && activeStudent && selectedJob && (
-          <SkillGapView student={activeStudent} job={selectedJob} onBack={backToMatches} />
-        )}
+          {currentStep === 'customize' && activeStudent && selectedJob && (
+            <CustomizationView student={activeStudent} job={selectedJob} onBack={backToMatches} />
+          )}
 
-        {currentStep === 'customize' && activeStudent && selectedJob && (
-          <CustomizationView student={activeStudent} job={selectedJob} onBack={backToMatches} />
-        )}
+          {currentStep === 'interview-prep' && activeStudent && selectedJob && (
+            <InterviewPrepView student={activeStudent} job={selectedJob} onBack={backToMatches} />
+          )}
 
-        {currentStep === 'interview-prep' && activeStudent && selectedJob && (
-          <InterviewPrepView student={activeStudent} job={selectedJob} onBack={backToMatches} />
-        )}
+          {currentStep === 'assistant' && activeStudent && (
+            <AssistantChat student={activeStudent} />
+          )}
+        </main>
+      )}
 
-        {currentStep === 'assistant' && activeStudent && (
-          <AssistantChat student={activeStudent} />
-        )}
-      </main>
-
-      <footer className="border-t border-[#2C5F2D]/20 bg-[#171B16] text-slate-400 py-8 text-center text-xs font-sans space-y-2">
-        <p className="font-serif text-sm text-[#FAF9F5]">AI Career Companion Agent</p>
-        <p>Internship Matching · Skill Gap Analysis · Resume & Cover Letter · Interview Prep · Career Assistant</p>
-        <p className="text-[11px] text-slate-500">Built with FastAPI, sentence-transformers, and Google Gemini AI</p>
+      <footer className="border-t border-line bg-ink text-sage py-16 text-center space-y-3">
+        <p className="font-serif text-[24px] text-paper leading-tight">AI Career Companion</p>
+        <p className="ds-body text-sage max-w-xl mx-auto px-6">
+          Internship matching, skill-gap analysis, resume tailoring, and interview prep — grounded in your real experience.
+        </p>
+        <p className="ds-caption">Built with FastAPI, sentence-transformers, and Google Gemini</p>
       </footer>
     </div>
   );

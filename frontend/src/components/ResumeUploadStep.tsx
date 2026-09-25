@@ -3,7 +3,6 @@ import {
   UploadCloud,
   FileText,
   CheckCircle2,
-  AlertCircle,
   Sparkles,
   ArrowRight,
   GraduationCap,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Student, StudentProfile } from '../types';
 import { uploadResume, getStudentProfile } from '../services/api';
+import { AlertBanner, Chip, EmptyState } from './ui';
 
 interface ResumeUploadStepProps {
   student: Student;
@@ -37,8 +37,7 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
   useEffect(() => {
     if (profile?.resumes?.length) {
       const latest = profile.resumes[profile.resumes.length - 1];
-      // Read-only derived value — no setState needed here
-      if (parsingStatus === 'none' && latest.parsing_status !== 'none') {
+      if (parsingStatus === 'none') {
         setParsingStatus(latest.parsing_status as 'pending' | 'success' | 'failed');
       }
     }
@@ -112,51 +111,50 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
       profile.experience.length > 0 ||
       profile.projects.length > 0);
 
+  const skillTone = (category?: string) => {
+    if (category === 'technical') return 'forest' as const;
+    if (category === 'tool') return 'gold' as const;
+    return 'muted' as const;
+  };
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in py-4">
-      
-      {/* Header */}
-      <div className="text-center space-y-3">
-        <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-[#2C5F2D]/10 text-[#2C5F2D] text-xs font-semibold">
-          <FileText className="h-3.5 w-3.5" />
-          <span>Step 2 of 3 · Resume Parsing & Skill Structuring</span>
+    <div className="space-y-12 animate-fade-in">
+      <div className="text-center space-y-4">
+        <div className="ds-kicker">
+          <FileText className="h-4 w-4" />
+          <span>Step 2 of 3 · Resume</span>
         </div>
-        <h2 className="text-3xl sm:text-4xl font-serif font-bold text-[#171B16]">
-          Upload Resume PDF
-        </h2>
-        <p className="text-slate-600 text-sm max-w-xl mx-auto font-sans">
-          PyMuPDF extracts raw text deterministically, while Google Gemini AI structures your skills, education, and project cards.
+        <h1 className="ds-h1">Upload your resume</h1>
+        <p className="ds-lead max-w-xl mx-auto">
+          We extract the PDF, then structure skills, education, experience, and projects into a profile you can review.
         </p>
       </div>
 
-      {/* Upload Zone & Status Card */}
-      <div className="bg-white border border-[#E2E0D5] rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-        
-        {/* Drag and Drop Box */}
+      <div className="ds-card p-8 sm:p-10 space-y-8">
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all ${
+          className={`border-2 border-dashed rounded-[20px] p-12 text-center transition-all ${
             selectedFile
-              ? 'border-[#2C5F2D] bg-[#2C5F2D]/5'
-              : 'border-[#D5D3C5] hover:border-[#2C5F2D] bg-[#FAF9F5]'
+              ? 'border-forest bg-forest/5'
+              : 'border-line hover:border-forest bg-cream'
           }`}
         >
-          <div className="max-w-sm mx-auto space-y-4 font-sans">
-            <div className="h-14 w-14 mx-auto rounded-full bg-[#2C5F2D]/10 text-[#2C5F2D] flex items-center justify-center">
-              <UploadCloud className="h-7 w-7" />
+          <div className="max-w-md mx-auto space-y-5">
+            <div className="h-16 w-16 mx-auto rounded-full bg-forest/10 text-forest flex items-center justify-center">
+              <UploadCloud className="h-8 w-8" />
             </div>
 
             <div>
-              <p className="text-sm font-bold text-slate-800">
-                {selectedFile ? selectedFile.name : 'Drag and drop your PDF resume here'}
+              <p className="text-[18px] font-semibold text-ink">
+                {selectedFile ? selectedFile.name : 'Drop your PDF resume here'}
               </p>
-              <p className="text-xs text-slate-500 mt-1">Accepts PDF files up to 5MB</p>
+              <p className="ds-caption mt-2">PDF files up to 5MB</p>
             </div>
 
-            <div className="flex items-center justify-center space-x-3">
-              <label className="cursor-pointer px-4 py-2 bg-[#EAE8DE] hover:bg-[#DFDCD0] text-slate-800 rounded-xl text-xs font-semibold transition-colors">
-                Browse Files
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <label className="ds-btn-secondary cursor-pointer">
+                Browse files
                 <input type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
               </label>
 
@@ -164,14 +162,14 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
                 <button
                   onClick={handleUpload}
                   disabled={uploading}
-                  className="px-5 py-2 bg-[#2C5F2D] hover:bg-[#234E25] disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-md shadow-[#2C5F2D]/20 flex items-center space-x-2 transition-all cursor-pointer"
+                  className="ds-btn-primary"
                 >
                   {uploading ? (
-                    <span>Parsing PDF...</span>
+                    <span>Parsing PDF…</span>
                   ) : (
                     <>
-                      <span>Parse & Structure Resume</span>
-                      <Sparkles className="h-3.5 w-3.5 text-[#C9A63B]" />
+                      <span>Parse & structure</span>
+                      <Sparkles className="h-4 w-4 text-gold" />
                     </>
                   )}
                 </button>
@@ -180,207 +178,159 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
           </div>
         </div>
 
-        {/* Upload Progress Bar */}
         {uploading && (
-          <div className="space-y-2 font-sans">
-            <div className="flex items-center justify-between text-xs text-slate-700">
-              <span className="flex items-center space-x-2">
-                <div className="h-2 w-2 rounded-full bg-[#2C5F2D] animate-ping" />
-                <span className="font-semibold">Extracting text & structuring skills via Gemini API...</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between ds-body">
+              <span className="flex items-center gap-3 font-semibold">
+                <div className="h-2.5 w-2.5 rounded-full bg-forest animate-ping" />
+                Extracting text and structuring skills…
               </span>
-              <span className="font-bold text-[#2C5F2D]">{uploadProgress}%</span>
+              <span className="font-bold text-forest">{uploadProgress}%</span>
             </div>
-            <div className="w-full bg-[#EAE8DE] rounded-full h-2 overflow-hidden border border-[#D5D3C5]">
+            <div className="w-full bg-mist rounded-full h-2.5 overflow-hidden">
               <div
-                className="bg-[#2C5F2D] h-2 transition-all duration-300 rounded-full"
+                className="bg-forest h-2.5 transition-all duration-300 rounded-full"
                 style={{ width: `${uploadProgress}%` }}
               />
             </div>
           </div>
         )}
 
-        {/* Friendly Error State */}
         {parsingStatus === 'failed' && (
-          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-sans space-y-1 text-left">
-            <div className="flex items-center space-x-2 font-bold text-rose-700">
-              <AlertCircle className="h-4 w-4" />
-              <span>Resume Extraction Issue</span>
-            </div>
-            <p className="text-slate-600 leading-relaxed">
-              {errorMsg || 'The uploaded file could not be parsed into structured candidate profile data. Please try another clear PDF resume.'}
-            </p>
-          </div>
+          <AlertBanner tone="error" title="Resume could not be parsed">
+            {errorMsg || 'Please try another clear PDF resume.'}
+          </AlertBanner>
         )}
 
-        {/* Success Banner */}
         {parsingStatus === 'success' && (
-          <div className="p-4 rounded-xl bg-[#2C5F2D]/10 border border-[#2C5F2D]/30 text-[#171B16] text-xs font-sans flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center space-x-2">
-              <CheckCircle2 className="h-5 w-5 text-[#2C5F2D]" />
-              <span className="font-bold text-slate-800">Resume parsed and verified successfully into candidate profile!</span>
-            </div>
-            <button
-              onClick={onProceedToMatches}
-              className="px-4 py-2 bg-[#2C5F2D] hover:bg-[#234E25] text-white font-semibold rounded-xl text-xs flex items-center space-x-1.5 shadow-sm transition-all cursor-pointer"
-            >
-              <span>View Job Matches</span>
-              <ArrowRight className="h-3.5 w-3.5 text-[#C9A63B]" />
-            </button>
-          </div>
+          <AlertBanner
+            tone="success"
+            title="Resume parsed successfully"
+            action={
+              <button onClick={onProceedToMatches} className="ds-btn-primary !py-3 !px-5 shrink-0">
+                View matches
+                <ArrowRight className="h-4 w-4 text-gold" />
+              </button>
+            }
+          >
+            Skills, education, and experience are now in {student.name}'s profile.
+          </AlertBanner>
         )}
-
       </div>
 
-      {/* Extracted Structured Profile View (Cards & Skill Tags) */}
       {profile && (
-        <div className="space-y-6 text-left font-sans">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Sparkles className="h-4 w-4 text-[#C9A63B]" />
-              <h3 className="text-base font-serif font-bold text-[#171B16]">
-                Extracted Candidate Profile
-              </h3>
+        <div className="space-y-10">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="ds-h2">Extracted profile</h2>
+              <p className="ds-muted ds-body mt-2">Review what we found before matching.</p>
             </div>
-            <button
-              onClick={reloadProfile}
-              className="text-xs text-slate-600 hover:text-slate-900 flex items-center space-x-1 bg-white px-3 py-1.5 rounded-lg border border-[#E2E0D5] cursor-pointer"
-            >
-              <RotateCcw className="h-3 w-3" />
-              <span>Refresh Profile</span>
+            <button onClick={reloadProfile} className="ds-btn-secondary !py-3">
+              <RotateCcw className="h-4 w-4" />
+              Refresh
             </button>
           </div>
 
-          {/* Skills Section (Chips grouped by Category) */}
-          <div className="bg-white border border-[#E2E0D5] rounded-2xl p-6 shadow-sm space-y-3">
-            <div className="flex items-center space-x-2">
-              <Code2 className="h-4 w-4 text-[#2C5F2D]" />
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Skills ({profile.skills.length})
-              </h4>
+          <section className="ds-card p-8 sm:p-10 space-y-6">
+            <div className="flex items-center gap-3">
+              <Code2 className="h-6 w-6 text-forest" />
+              <h3 className="ds-h3">Skills</h3>
+              <span className="ds-chip ds-chip-muted">{profile.skills.length}</span>
             </div>
-
             {profile.skills.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No skills extracted yet.</p>
+              <EmptyState title="No skills yet" body="Upload a resume to extract skills into this section." />
             ) : (
               <div className="flex flex-wrap gap-2">
                 {profile.skills.map((skill) => (
-                  <span
-                    key={skill.id}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                      skill.category === 'technical'
-                        ? 'bg-[#2C5F2D]/10 text-[#2C5F2D] border-[#2C5F2D]/30'
-                        : skill.category === 'tool'
-                        ? 'bg-[#C9A63B]/15 text-[#8A6D1D] border-[#C9A63B]/30'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    {skill.name}
-                  </span>
+                  <Chip key={skill.id} tone={skillTone(skill.category)}>{skill.name}</Chip>
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Education Cards */}
-          <div className="bg-white border border-[#E2E0D5] rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2">
-              <GraduationCap className="h-4 w-4 text-[#2C5F2D]" />
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Education ({profile.education.length})
-              </h4>
+          <section className="ds-card p-8 sm:p-10 space-y-6">
+            <div className="flex items-center gap-3">
+              <GraduationCap className="h-6 w-6 text-forest" />
+              <h3 className="ds-h3">Education</h3>
+              <span className="ds-chip ds-chip-muted">{profile.education.length}</span>
             </div>
-
             {profile.education.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No education entries listed.</p>
+              <p className="ds-body ds-muted">No education entries yet.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {profile.education.map((edu) => (
-                  <div key={edu.id} className="p-4 rounded-xl bg-[#FAF9F5] border border-[#E2E0D5] space-y-1">
-                    <div className="text-xs font-bold text-[#171B16]">{edu.institution}</div>
-                    <div className="text-xs font-semibold text-[#2C5F2D]">
+                  <div key={edu.id} className="ds-card-inset p-6 space-y-2">
+                    <div className="text-[18px] font-serif font-bold text-ink">{edu.institution}</div>
+                    <div className="ds-body text-forest font-semibold">
                       {edu.degree || 'Degree'} {edu.field_of_study ? `in ${edu.field_of_study}` : ''}
                     </div>
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
-                      <span>{edu.start_date || ''} - {edu.end_date || 'Present'}</span>
-                      {edu.grade && <span className="font-semibold text-slate-700">{edu.grade}</span>}
+                    <div className="ds-caption flex items-center justify-between pt-2">
+                      <span>{edu.start_date || ''} — {edu.end_date || 'Present'}</span>
+                      {edu.grade && <span className="font-semibold text-ink">{edu.grade}</span>}
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Experience Cards */}
-          <div className="bg-white border border-[#E2E0D5] rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2">
-              <Briefcase className="h-4 w-4 text-[#2C5F2D]" />
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Experience ({profile.experience.length})
-              </h4>
+          <section className="ds-card p-8 sm:p-10 space-y-6">
+            <div className="flex items-center gap-3">
+              <Briefcase className="h-6 w-6 text-forest" />
+              <h3 className="ds-h3">Experience</h3>
+              <span className="ds-chip ds-chip-muted">{profile.experience.length}</span>
             </div>
-
             {profile.experience.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No experience entries listed.</p>
+              <p className="ds-body ds-muted">No experience entries yet.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {profile.experience.map((exp) => (
-                  <div key={exp.id} className="p-4 rounded-xl bg-[#FAF9F5] border border-[#E2E0D5] space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-[#171B16]">{exp.title}</span>
-                      <span className="text-[11px] text-slate-500">{exp.start_date || ''} - {exp.end_date || 'Present'}</span>
+                  <div key={exp.id} className="ds-card-inset p-6 space-y-2">
+                    <div className="flex items-start justify-between gap-4 flex-wrap">
+                      <span className="text-[18px] font-serif font-bold text-ink">{exp.title}</span>
+                      <span className="ds-caption">{exp.start_date || ''} — {exp.end_date || 'Present'}</span>
                     </div>
-                    {exp.organization && <div className="text-xs font-semibold text-[#8A6D1D]">{exp.organization}</div>}
-                    {exp.description && <p className="text-xs text-slate-600 leading-relaxed">{exp.description}</p>}
+                    {exp.organization && <div className="text-[16px] font-semibold text-gold-deep">{exp.organization}</div>}
+                    {exp.description && <p className="ds-body ds-muted">{exp.description}</p>}
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Projects Cards */}
-          <div className="bg-white border border-[#E2E0D5] rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center space-x-2">
-              <Wrench className="h-4 w-4 text-[#2C5F2D]" />
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                Projects ({profile.projects.length})
-              </h4>
+          <section className="ds-card p-8 sm:p-10 space-y-6">
+            <div className="flex items-center gap-3">
+              <Wrench className="h-6 w-6 text-forest" />
+              <h3 className="ds-h3">Projects</h3>
+              <span className="ds-chip ds-chip-muted">{profile.projects.length}</span>
             </div>
-
             {profile.projects.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No projects listed.</p>
+              <p className="ds-body ds-muted">No projects yet.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {profile.projects.map((proj) => (
-                  <div key={proj.id} className="p-4 rounded-xl bg-[#FAF9F5] border border-[#E2E0D5] space-y-2">
-                    <div className="text-xs font-bold text-[#171B16]">{proj.title}</div>
-                    {proj.description && <p className="text-xs text-slate-600 leading-relaxed">{proj.description}</p>}
+                  <div key={proj.id} className="ds-card-inset p-6 space-y-3">
+                    <div className="text-[18px] font-serif font-bold text-ink">{proj.title}</div>
+                    {proj.description && <p className="ds-body ds-muted">{proj.description}</p>}
                     {proj.technologies && (
-                      <div className="text-[11px] font-medium text-[#2C5F2D] bg-[#2C5F2D]/10 border border-[#2C5F2D]/20 px-2.5 py-1 rounded-md">
-                        Tech: {proj.technologies}
-                      </div>
+                      <div className="ds-chip ds-chip-forest">{proj.technologies}</div>
                     )}
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Proceed Button */}
           {hasExtractedData && (
-            <div className="pt-4 flex justify-end">
-              <button
-                onClick={onProceedToMatches}
-                className="px-6 py-3.5 bg-[#2C5F2D] hover:bg-[#234E25] text-white font-bold rounded-xl text-sm shadow-md shadow-[#2C5F2D]/25 flex items-center space-x-2 transition-all cursor-pointer"
-              >
-                <span>Run Job Matching RAG Pipeline</span>
-                <ArrowRight className="h-4 w-4 text-[#C9A63B]" />
+            <div className="flex justify-end pt-2">
+              <button onClick={onProceedToMatches} className="ds-btn-primary">
+                <span>Run job matching</span>
+                <ArrowRight className="h-5 w-5 text-gold" />
               </button>
             </div>
           )}
-
         </div>
       )}
-
     </div>
   );
 };

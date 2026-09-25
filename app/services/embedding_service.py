@@ -24,8 +24,20 @@ def _get_local_model():
     global _local_model
     if _local_model is None:
         from sentence_transformers import SentenceTransformer
-        _local_model = SentenceTransformer("all-MiniLM-L6-v2")
+        # Try local cache first for instant loading without HF Hub network roundtrips
+        try:
+            _local_model = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+        except Exception:
+            _local_model = SentenceTransformer("all-MiniLM-L6-v2")
     return _local_model
+
+
+def preload_local_model() -> float:
+    """Pre-warm sentence-transformers model at startup and return loading duration in seconds."""
+    import time
+    t0 = time.time()
+    _get_local_model()
+    return time.time() - t0
 
 
 def get_embedding(text: str, input_type: str = "document") -> List[float]:

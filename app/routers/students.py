@@ -43,12 +43,19 @@ def get_student_profile(student_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{student_id}/matches", response_model=schemas.StudentMatchesResponse)
-def get_student_matches(student_id: int, top_k: int = 10, db: Session = Depends(get_db)):
+def get_student_matches(
+    student_id: int,
+    top_k: int = 10,
+    force_refresh: bool = False,
+    db: Session = Depends(get_db),
+):
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
 
-    matches_data = get_job_matches_for_student(student_id=student_id, db=db, top_k=top_k)
+    matches_data = get_job_matches_for_student(
+        student_id=student_id, db=db, top_k=top_k, force_refresh=force_refresh
+    )
     return schemas.StudentMatchesResponse(
         student_id=student.id,
         student_name=student.name,
