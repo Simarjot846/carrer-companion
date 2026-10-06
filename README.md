@@ -78,6 +78,24 @@ uvicorn app.main:app --reload
 
 Visit `http://localhost:8000/docs` for interactive API docs (Swagger UI).
 
+## Deploying the frontend to Vercel
+
+The Vite frontend can be deployed to Vercel as a static site. Set the Vercel
+project's **Root Directory** to `frontend`; Vercel will use `npm run build` and
+the `dist` output directory. The `frontend/vercel.json` file configures the SPA
+fallback.
+
+Set `VITE_API_BASE_URL` in the Vercel project's environment variables to the
+public base URL of a separately deployed FastAPI backend (for example,
+`https://api.example.com`, with no trailing slash). Without this setting, the
+frontend uses `/api`, which only works locally through the Vite development
+proxy. Only put public, non-secret values in `VITE_*` variables.
+
+The Python API is not included in this static Vercel deployment. It uses a
+database and local ML dependencies/model loading, so deploy it to a Python
+service with persistent database and file storage, then point the frontend at
+that service.
+
 ## API endpoints (Milestone 1)
 
 | Method | Endpoint | Purpose |

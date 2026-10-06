@@ -18,7 +18,7 @@ function GapSection({
   title, icon, items, labelKey, accentColor, accentBg, borderColor, defaultOpen = true,
 }: {
   title: string;
-  icon: React.ReactNode;
+  icon: React.ReactElement<React.SVGProps<SVGSVGElement>>;
   items: GapItem[];
   labelKey: 'skill' | 'area';
   accentColor: string;
@@ -47,7 +47,7 @@ function GapSection({
             background: accentBg, color: accentColor,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            {React.cloneElement(icon as React.ReactElement, { style: { width: '18px', height: '18px' } })}
+            {React.cloneElement(icon, { style: { width: '18px', height: '18px' } })}
           </div>
           <h3 className="ds-h3" style={{ color: 'var(--color-ink)' }}>{title}</h3>
           <span style={{

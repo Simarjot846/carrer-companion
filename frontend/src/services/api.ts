@@ -1,6 +1,6 @@
 import type { Student, StudentProfile, StudentMatchesResponse, SkillGapResponse, CustomizationResponse, InterviewPrepResponse, AssistantChatResponse, ChatTurn } from '../types';
 
-const API_BASE = '/api'; // Proxied to http://localhost:8000 via Vite config
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
 export async function createStudent(name: string, email: string): Promise<Student> {
   const res = await fetch(`${API_BASE}/students/`, {

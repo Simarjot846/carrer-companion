@@ -422,7 +422,7 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
 
 /* Reusable profile section wrapper */
 function ProfileSection({ icon, title, count, children }: {
-  icon: React.ReactNode; title: string; count: number; children: React.ReactNode;
+  icon: React.ReactElement<React.SVGProps<SVGSVGElement>>; title: string; count: number; children: React.ReactNode;
 }) {
   return (
     <div className="ds-card" style={{ padding: '32px 36px', overflow: 'hidden' }}>
@@ -432,7 +432,7 @@ function ProfileSection({ icon, title, count, children }: {
           background: 'var(--color-leaf-bg)', color: 'var(--color-forest)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {React.cloneElement(icon as React.ReactElement, { style: { width: '22px', height: '22px' } })}
+          {React.cloneElement(icon, { style: { width: '22px', height: '22px' } })}
         </div>
         <h3 className="ds-h3" style={{ color: 'var(--color-ink)', flex: 1 }}>{title}</h3>
         <span style={{

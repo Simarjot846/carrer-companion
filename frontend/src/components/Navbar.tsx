@@ -32,7 +32,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, []);
 
   const isAgentStep = ['skill-gap', 'customize', 'interview-prep'].includes(currentStep);
-  const isMatchesOrAgent = currentStep === 'matches' || isAgentStep;
 
   return (
     <header style={{
