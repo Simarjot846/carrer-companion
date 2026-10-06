@@ -170,3 +170,79 @@ export interface AssistantChatResponse {
   reply: string;
   updated_history: ChatTurn[];
 }
+
+// ---------------------------------------------------------------------------
+// M4.1 — Application Tracking
+// ---------------------------------------------------------------------------
+
+export const APPLICATION_STATUSES = [
+  'Saved',
+  'Planning to Apply',
+  'Applied',
+  'Under Review',
+  'Shortlisted',
+  'Interview Scheduled',
+  'Interview Completed',
+  'Offer Received',
+  'Rejected',
+  'Withdrawn',
+] as const;
+
+export type ApplicationStatus = typeof APPLICATION_STATUSES[number];
+
+export interface Application {
+  id: number;
+  student_id: number;
+  company_name: string;
+  job_title: string;
+  job_description?: string;
+  job_posting_id?: number;
+  application_date?: string;   // "YYYY-MM-DD"
+  deadline?: string;           // "YYYY-MM-DD"
+  status: ApplicationStatus;
+  interview_date?: string;     // ISO datetime
+  interview_status?: string;
+  notes?: string;
+  job_url?: string;
+  resume_version_note?: string;
+  cover_letter_version_note?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationCreate {
+  company_name: string;
+  job_title: string;
+  job_description?: string;
+  job_posting_id?: number;
+  application_date?: string;
+  deadline?: string;
+  status: ApplicationStatus;
+  interview_date?: string;
+  interview_status?: string;
+  notes?: string;
+  job_url?: string;
+  resume_version_note?: string;
+  cover_letter_version_note?: string;
+}
+
+export interface ApplicationUpdate extends Partial<ApplicationCreate> {}
+
+export interface UpcomingItem {
+  application_id: number;
+  company_name: string;
+  job_title: string;
+  type: 'deadline' | 'interview';
+  date: string;
+  days_away: number;
+}
+
+export interface DashboardSummary {
+  total_applications: number;
+  active_applications: number;
+  applied_count: number;
+  interview_scheduled: number;
+  offers_received: number;
+  rejected_count: number;
+  upcoming: UpcomingItem[];
+}

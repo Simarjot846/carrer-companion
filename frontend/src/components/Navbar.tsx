@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, UserCheck, FileText, Target, RotateCcw, Home, Bot } from 'lucide-react';
+import { Sparkles, UserCheck, FileText, Target, RotateCcw, Home, Bot, LayoutDashboard } from 'lucide-react';
 import type { Student } from '../types';
 
-type AppStep = 'landing' | 'profile' | 'upload' | 'matches' | 'skill-gap' | 'customize' | 'interview-prep' | 'assistant';
+export type AppStep = 'landing' | 'profile' | 'upload' | 'matches' | 'skill-gap' | 'customize' | 'interview-prep' | 'assistant' | 'tracker';
 
 interface NavbarProps {
   currentStep: AppStep;
@@ -12,118 +12,195 @@ interface NavbarProps {
   onSelectStep: (step: AppStep) => void;
 }
 
-const STEP_LABELS: Partial<Record<AppStep, string>> = {
-  'skill-gap': 'Skill Gap',
-  'customize': 'Tailor Resume',
-  'interview-prep': 'Interview Prep',
-};
+const NAV_ITEMS = [
+  { step: 'landing' as AppStep,  icon: Home,          label: 'Home',      always: true },
+  { step: 'profile' as AppStep,  icon: UserCheck,     label: 'Profile',   always: true },
+  { step: 'upload' as AppStep,   icon: FileText,      label: 'Resume',    always: false },
+  { step: 'matches' as AppStep,  icon: Target,        label: 'Matches',   always: false },
+  { step: 'tracker' as AppStep,  icon: LayoutDashboard, label: 'Tracker', always: false },
+];
 
-export const Navbar: React.FC<NavbarProps> = ({ currentStep, activeStudent, onReset, onGetStarted, onSelectStep }) => {
-  const isM3Step = ['skill-gap', 'customize', 'interview-prep'].includes(currentStep);
+export const Navbar: React.FC<NavbarProps> = ({
+  currentStep, activeStudent, onReset, onGetStarted, onSelectStep,
+}) => {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    const handler = () => setScrolled(window.scrollY > 12);
+    window.addEventListener('scroll', handler, { passive: true });
+    return () => window.removeEventListener('scroll', handler);
   }, []);
 
+  const isAgentStep = ['skill-gap', 'customize', 'interview-prep'].includes(currentStep);
+  const isMatchesOrAgent = currentStep === 'matches' || isAgentStep;
+
   return (
-    <header
-      className={`sticky top-0 z-50 px-4 lg:px-8 transition-all duration-300 ${
-        scrolled
-          ? 'bg-paper/90 backdrop-blur-md shadow-[0_8px_30px_-18px_rgba(22,25,20,0.35)] border-b border-line'
-          : 'bg-cream/80 backdrop-blur-sm border-b border-transparent'
-      }`}
-    >
-      <div className="max-w-[1120px] mx-auto flex items-center justify-between gap-4 h-[72px]">
+    <header style={{
+      position: 'sticky', top: 0, zIndex: 100,
+      background: scrolled ? 'rgba(15,20,16,.96)' : 'rgba(15,20,16,1)',
+      backdropFilter: scrolled ? 'blur(16px)' : 'none',
+      borderBottom: scrolled ? '1px solid rgba(255,255,255,.06)' : '1px solid rgba(255,255,255,.08)',
+      boxShadow: scrolled ? '0 2px 24px rgba(0,0,0,.30)' : 'none',
+      transition: 'all .25s ease',
+      color: 'var(--color-paper)',
+    }}>
+      <div className="ds-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', height: '64px' }}>
+
+        {/* Brand */}
         <button
           onClick={() => onSelectStep('landing')}
-          className="flex items-center gap-3 group shrink-0 cursor-pointer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0,
+          }}
         >
-          <div className="h-11 w-11 rounded-[14px] bg-forest flex items-center justify-center shadow-[0_8px_20px_-10px_rgba(36,88,42,0.7)]">
-            <Sparkles className="h-5 w-5 text-gold" />
+          <div style={{
+            width: '38px', height: '38px', borderRadius: '11px',
+            background: 'linear-gradient(135deg, var(--color-forest) 0%, #0f2912 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 14px rgba(26,66,32,.50)',
+            flexShrink: 0,
+          }}>
+            <Sparkles style={{ width: '18px', height: '18px', color: 'var(--color-gold)' }} />
           </div>
-          <div className="text-left hidden sm:block">
-            <div className="font-serif text-[18px] font-bold text-ink tracking-tight leading-none">
-              Career Companion
-            </div>
-            <p className="ds-caption mt-1">
-              {isM3Step ? STEP_LABELS[currentStep] : 'Internship intelligence'}
-            </p>
-          </div>
+          <span style={{
+            fontFamily: 'var(--font-serif)', fontSize: '17px', fontWeight: '700',
+            color: 'var(--color-paper)', letterSpacing: '-0.01em',
+            display: 'none',
+          }} className="brand-name">
+            AI Career Companion
+          </span>
         </button>
 
-        {currentStep !== 'landing' && (
-          <nav className="hidden md:flex items-center bg-paper rounded-[14px] border border-line p-1 gap-0.5 shadow-[var(--shadow-sm)]">
-            {[
-              { step: 'landing' as AppStep, icon: <Home className="h-4 w-4" />, label: 'Home', always: true },
-              { step: 'profile' as AppStep, icon: <UserCheck className="h-4 w-4" />, label: 'Profile', always: true },
-              { step: 'upload' as AppStep, icon: <FileText className="h-4 w-4" />, label: 'Resume', always: false },
-              { step: 'matches' as AppStep, icon: <Target className="h-4 w-4" />, label: 'Matches', always: false },
-            ].map(({ step, icon, label, always }) => {
-              const disabled = !always && !activeStudent;
-              const active = currentStep === step || (step === 'matches' && isM3Step);
-              return (
-                <button
-                  key={step}
-                  onClick={() => !disabled && onSelectStep(step)}
-                  disabled={disabled}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[14px] font-semibold transition-all ${
-                    disabled
-                      ? 'opacity-35 cursor-not-allowed text-stone'
-                      : active
-                      ? 'bg-forest text-white shadow-sm cursor-pointer'
-                      : 'text-stone hover:text-ink hover:bg-cream cursor-pointer'
-                  }`}
-                >
-                  {icon}
-                  <span>{label}</span>
-                </button>
-              );
-            })}
-            <div className="w-px h-5 bg-line mx-0.5" />
-            <button
-              onClick={() => activeStudent && onSelectStep('assistant')}
-              disabled={!activeStudent}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-[14px] font-semibold transition-all ${
-                !activeStudent
-                  ? 'opacity-35 cursor-not-allowed text-stone'
-                  : currentStep === 'assistant'
-                  ? 'bg-gold-deep text-white cursor-pointer'
-                  : 'text-gold-deep hover:bg-[color-mix(in_srgb,var(--color-gold)_14%,white)] cursor-pointer'
-              }`}
-            >
-              <Bot className="h-4 w-4" />
-              <span>Assistant</span>
-            </button>
-          </nav>
-        )}
+        {/* Navigation pills */}
+        <nav style={{
+          display: 'flex', alignItems: 'center',
+          background: 'rgba(255,255,255,.05)',
+          border: '1px solid rgba(255,255,255,.08)',
+          borderRadius: '13px', padding: '4px', gap: '2px',
+          overflow: 'hidden',
+        }}>
+          {NAV_ITEMS.map(({ step, icon: Icon, label, always }) => {
+            const disabled = !always && !activeStudent;
+            const active = currentStep === step || (step === 'matches' && isAgentStep);
+            return (
+              <button
+                key={step}
+                onClick={() => !disabled && onSelectStep(step)}
+                disabled={disabled}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '7px 14px', borderRadius: '9px',
+                  fontSize: '14px', fontWeight: '600',
+                  border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+                  transition: 'all .15s ease',
+                  background: active ? 'var(--color-forest)' : 'transparent',
+                  color: active ? 'white' : disabled ? 'rgba(255,255,255,.22)' : 'rgba(255,255,255,.55)',
+                  boxShadow: active ? '0 2px 8px rgba(26,66,32,.40)' : 'none',
+                  opacity: disabled ? .4 : 1,
+                }}
+                onMouseEnter={e => { if (!disabled && !active) e.currentTarget.style.background = 'rgba(255,255,255,.08)'; }}
+                onMouseLeave={e => { if (!disabled && !active) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <Icon style={{ width: '14px', height: '14px' }} />
+                <span className="nav-label">{label}</span>
+              </button>
+            );
+          })}
 
-        <div className="shrink-0">
+          {/* Separator */}
+          <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,.10)', margin: '0 2px' }} />
+
+          {/* Assistant button */}
+          <button
+            onClick={() => activeStudent && onSelectStep('assistant')}
+            disabled={!activeStudent}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '9px',
+              fontSize: '14px', fontWeight: '600',
+              border: 'none', cursor: !activeStudent ? 'not-allowed' : 'pointer',
+              transition: 'all .15s ease',
+              background: currentStep === 'assistant'
+                ? 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-amber) 100%)'
+                : 'transparent',
+              color: currentStep === 'assistant' ? 'white' : !activeStudent ? 'rgba(255,255,255,.22)' : 'rgba(201,150,58,.80)',
+              opacity: !activeStudent ? .4 : 1,
+            }}
+            onMouseEnter={e => { if (activeStudent && currentStep !== 'assistant') e.currentTarget.style.background = 'rgba(201,150,58,.12)'; }}
+            onMouseLeave={e => { if (activeStudent && currentStep !== 'assistant') e.currentTarget.style.background = 'transparent'; }}
+          >
+            <Bot style={{ width: '14px', height: '14px' }} />
+            <span className="nav-label">Assistant</span>
+          </button>
+        </nav>
+
+        {/* Right side: student badge or CTA */}
+        <div style={{ flexShrink: 0 }}>
           {activeStudent ? (
-            <div className="flex items-center gap-2 bg-paper border border-line px-3 py-1.5 rounded-[14px]">
-              <div className="h-8 w-8 rounded-full bg-forest flex items-center justify-center text-white text-[14px] font-bold">
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: 'rgba(255,255,255,.06)',
+              border: '1px solid rgba(255,255,255,.09)',
+              borderRadius: '11px', padding: '7px 12px',
+            }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0,
+                background: 'linear-gradient(135deg, var(--color-forest) 0%, var(--color-gold) 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '12px', fontWeight: '700', color: 'white',
+              }}>
                 {activeStudent.name.charAt(0)}
               </div>
-              <span className="text-[14px] text-ink font-semibold hidden sm:inline max-w-[120px] truncate">
+              <span style={{
+                fontSize: '14px', fontWeight: '600', color: 'var(--color-paper)',
+                maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }} className="student-name">
                 {activeStudent.name}
               </span>
               <button
                 onClick={onReset}
                 title="Switch candidate"
-                className="text-stone hover:text-clay p-1 rounded-lg transition-colors cursor-pointer"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'rgba(255,255,255,.35)', padding: '2px',
+                  transition: 'color .15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-clay)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.35)')}
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw style={{ width: '13px', height: '13px' }} />
               </button>
             </div>
           ) : (
-            <button onClick={onGetStarted} className="ds-btn-primary !py-3 !px-5">
+            <button
+              onClick={onGetStarted}
+              style={{
+                padding: '10px 22px', borderRadius: '11px',
+                background: 'var(--color-forest)',
+                color: 'white', fontSize: '14px', fontWeight: '700',
+                border: 'none', cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(26,66,32,.40)',
+                transition: 'all .15s ease',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#143418')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'var(--color-forest)')}
+            >
               Get Started
             </button>
           )}
         </div>
       </div>
+
+      <style>{`
+        @media (min-width: 640px) {
+          .brand-name { display: block !important; }
+        }
+        @media (max-width: 480px) {
+          .nav-label { display: none !important; }
+          .student-name { display: none !important; }
+        }
+      `}</style>
     </header>
   );
 };

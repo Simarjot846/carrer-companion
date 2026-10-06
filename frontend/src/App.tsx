@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
+import type { AppStep } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
 import { ProfileCreationStep } from './components/ProfileCreationStep';
 import { ResumeUploadStep } from './components/ResumeUploadStep';
@@ -8,10 +9,9 @@ import { SkillGapView } from './components/SkillGapView';
 import { CustomizationView } from './components/CustomizationView';
 import { InterviewPrepView } from './components/InterviewPrepView';
 import { AssistantChat } from './components/AssistantChat';
+import { ApplicationTracker } from './components/ApplicationTracker';
 import type { Student, StudentProfile, JobMatch } from './types';
 import { listStudents, getStudentProfile } from './services/api';
-
-type AppStep = 'landing' | 'profile' | 'upload' | 'matches' | 'skill-gap' | 'customize' | 'interview-prep' | 'assistant';
 
 export function App() {
   const [currentStep, setCurrentStep] = useState<AppStep>('landing');
@@ -21,14 +21,6 @@ export function App() {
   const [selectedJob, setSelectedJob] = useState<JobMatch | null>(null);
 
   useEffect(() => {
-    const loadExistingStudents = async () => {
-      try {
-        const students = await listStudents();
-        setExistingStudents(students);
-      } catch (err) {
-        console.error('Failed to load existing students:', err);
-      }
-    };
     loadExistingStudents();
   }, []);
 
@@ -46,7 +38,7 @@ export function App() {
     try {
       const p = await getStudentProfile(student.id);
       setProfile(p);
-      const hasContent = (p.resumes && p.resumes.length > 0) || (p.skills && p.skills.length > 0);
+      const hasContent = (p.resumes?.length > 0) || (p.skills?.length > 0);
       setCurrentStep(hasContent ? 'matches' : 'upload');
     } catch {
       setCurrentStep('upload');
@@ -82,75 +74,96 @@ export function App() {
     setCurrentStep(agent);
   };
 
-  const backToMatches = () => {
-    setCurrentStep('matches');
+  const backToMatches = () => setCurrentStep('matches');
+
+  const handleSelectStep = (step: AppStep) => {
+    // Guard agent views that need a selected job
+    if (['skill-gap', 'customize', 'interview-prep'].includes(step) && !selectedJob) return;
+    setCurrentStep(step);
   };
 
   return (
-    <div className="min-h-screen bg-cream text-ink flex flex-col font-sans selection:bg-forest selection:text-white">
+    <div style={{ minHeight: '100vh', background: 'var(--color-paper)', color: 'var(--color-ink)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)' }}>
       <Navbar
         currentStep={currentStep}
         activeStudent={activeStudent}
         onReset={handleReset}
         onGetStarted={() => setCurrentStep('profile')}
-        onSelectStep={(step) => {
-          if (['skill-gap', 'customize', 'interview-prep'].includes(step) && !selectedJob) return;
-          setCurrentStep(step);
-        }}
+        onSelectStep={handleSelectStep}
       />
 
       {currentStep === 'landing' ? (
         <LandingPage onGetStarted={() => setCurrentStep('profile')} />
       ) : (
-        <main className="flex-1 w-full ds-shell py-16 lg:py-20">
-          {currentStep === 'profile' && (
-            <ProfileCreationStep
-              onProfileCreated={handleProfileCreated}
-              existingStudents={existingStudents}
-              onSelectExisting={handleSelectStudent}
-            />
-          )}
+        <main style={{ flex: 1, width: '100%' }}>
+          <div className="ds-shell" style={{ paddingTop: '64px', paddingBottom: '80px' }}>
 
-          {currentStep === 'upload' && activeStudent && (
-            <ResumeUploadStep
-              student={activeStudent}
-              profile={profile}
-              onProfileUpdated={handleProfileUpdated}
-              onProceedToMatches={() => setCurrentStep('matches')}
-            />
-          )}
+            {currentStep === 'profile' && (
+              <ProfileCreationStep
+                onProfileCreated={handleProfileCreated}
+                existingStudents={existingStudents}
+                onSelectExisting={handleSelectStudent}
+              />
+            )}
 
-          {currentStep === 'matches' && activeStudent && (
-            <JobMatchesStep
-              student={activeStudent}
-              onOpenAgent={handleOpenAgent}
-            />
-          )}
+            {currentStep === 'upload' && activeStudent && (
+              <ResumeUploadStep
+                student={activeStudent}
+                profile={profile}
+                onProfileUpdated={handleProfileUpdated}
+                onProceedToMatches={() => setCurrentStep('matches')}
+              />
+            )}
 
-          {currentStep === 'skill-gap' && activeStudent && selectedJob && (
-            <SkillGapView student={activeStudent} job={selectedJob} onBack={backToMatches} />
-          )}
+            {currentStep === 'matches' && activeStudent && (
+              <JobMatchesStep
+                student={activeStudent}
+                onOpenAgent={handleOpenAgent}
+              />
+            )}
 
-          {currentStep === 'customize' && activeStudent && selectedJob && (
-            <CustomizationView student={activeStudent} job={selectedJob} onBack={backToMatches} />
-          )}
+            {currentStep === 'skill-gap' && activeStudent && selectedJob && (
+              <SkillGapView student={activeStudent} job={selectedJob} onBack={backToMatches} />
+            )}
 
-          {currentStep === 'interview-prep' && activeStudent && selectedJob && (
-            <InterviewPrepView student={activeStudent} job={selectedJob} onBack={backToMatches} />
-          )}
+            {currentStep === 'customize' && activeStudent && selectedJob && (
+              <CustomizationView student={activeStudent} job={selectedJob} onBack={backToMatches} />
+            )}
 
-          {currentStep === 'assistant' && activeStudent && (
-            <AssistantChat student={activeStudent} />
-          )}
+            {currentStep === 'interview-prep' && activeStudent && selectedJob && (
+              <InterviewPrepView student={activeStudent} job={selectedJob} onBack={backToMatches} />
+            )}
+
+            {currentStep === 'assistant' && activeStudent && (
+              <AssistantChat student={activeStudent} />
+            )}
+
+            {currentStep === 'tracker' && activeStudent && (
+              <ApplicationTracker student={activeStudent} />
+            )}
+
+          </div>
         </main>
       )}
 
-      <footer className="border-t border-line bg-ink text-sage py-16 text-center space-y-3">
-        <p className="font-serif text-[24px] text-paper leading-tight">AI Career Companion</p>
-        <p className="ds-body text-sage max-w-xl mx-auto px-6">
-          Internship matching, skill-gap analysis, resume tailoring, and interview prep — grounded in your real experience.
-        </p>
-        <p className="ds-caption">Built with FastAPI, sentence-transformers, and Google Gemini</p>
+      <footer style={{
+        borderTop: '1px solid rgba(255,255,255,.08)',
+        background: 'var(--color-ink)',
+        color: 'var(--color-sage)',
+        padding: '64px 0',
+        textAlign: 'center',
+      }}>
+        <div className="ds-shell" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', color: 'var(--color-paper)', lineHeight: '1.2' }}>
+            AI Career Companion
+          </p>
+          <p style={{ fontSize: '16px', color: 'rgba(163,196,167,.70)', maxWidth: '520px', margin: '0 auto', lineHeight: '1.6' }}>
+            Internship matching, skill-gap analysis, resume tailoring, and interview prep — grounded in your real experience.
+          </p>
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,.25)', marginTop: '8px' }}>
+            Built with FastAPI · sentence-transformers · Google Gemini
+          </p>
+        </div>
       </footer>
     </div>
   );

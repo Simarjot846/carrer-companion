@@ -173,7 +173,8 @@ def _call_gemini_prep(
     try:
         prompt = _PREP_PROMPT.format(profile=profile_text, job=job_text, gaps=gaps_text)
         model = genai.GenerativeModel("gemini-3.6-flash")
-        response = model.generate_content(prompt)
+        # Timeout raised to 45s — consistent with other agent calls
+        response = model.generate_content(prompt, request_options={"timeout": 45})
         parsed = _parse_json(response.text.strip())
         return _validate_prep_response(parsed)
     except Exception as e:

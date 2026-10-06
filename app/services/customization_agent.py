@@ -180,7 +180,8 @@ def _call_gemini_resume(
     try:
         prompt = _RESUME_PROMPT.format(profile=profile_text, job=job_text)
         model = genai.GenerativeModel("gemini-3.6-flash")
-        response = model.generate_content(prompt)
+        # Timeout raised to 45s — 2s was too aggressive and caused silent fallback to empty output
+        response = model.generate_content(prompt, request_options={"timeout": 45})
         parsed = _parse_json(response.text.strip())
         return _validate_resume_response(parsed)
     except Exception as e:
@@ -236,7 +237,8 @@ def _call_gemini_cover_letter(
     try:
         prompt = _COVER_LETTER_PROMPT.format(profile=profile_text, job=job_text)
         model = genai.GenerativeModel("gemini-3.6-flash")
-        response = model.generate_content(prompt)
+        # Timeout raised to 45s — consistent with resume customization call
+        response = model.generate_content(prompt, request_options={"timeout": 45})
         parsed = _parse_json(response.text.strip())
         return _validate_cover_letter_response(parsed)
     except Exception as e:

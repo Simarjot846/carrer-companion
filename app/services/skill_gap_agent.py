@@ -185,7 +185,7 @@ def _call_gemini_skill_gap(
 
     try:
         model = genai.GenerativeModel("gemini-3.6-flash")
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, request_options={"timeout": 45})
         raw = response.text.strip()
         parsed = _parse_json(raw)
         return _validate_skill_gap_response(parsed)

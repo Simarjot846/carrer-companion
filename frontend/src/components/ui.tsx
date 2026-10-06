@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react';
 
+/* ── Score Ring ──────────────────────────────────────────────────── */
 export function ScoreRing({
   score,
   size = 96,
@@ -12,8 +13,10 @@ export function ScoreRing({
 }) {
   const r = 42;
   const c = 2 * Math.PI * r;
-  const offset = c - (Math.min(100, Math.max(0, score)) / 100) * c;
+  const pct = Math.min(100, Math.max(0, score));
+  const offset = c - (pct / 100) * c;
   const color = score >= 80 ? 'var(--color-forest)' : score >= 60 ? 'var(--color-gold)' : 'var(--color-clay)';
+  const fontSize = size >= 80 ? Math.round(size * 0.24) : Math.round(size * 0.22);
 
   return (
     <div className="score-ring" style={{ width: size, height: size }} aria-label={`${score} percent match`}>
@@ -21,9 +24,7 @@ export function ScoreRing({
         <circle cx="50" cy="50" r={r} fill="none" stroke="var(--color-line)" strokeWidth={stroke} />
         <circle
           className="score-ring-progress"
-          cx="50"
-          cy="50"
-          r={r}
+          cx="50" cy="50" r={r}
           fill="none"
           stroke={color}
           strokeWidth={stroke}
@@ -33,23 +34,25 @@ export function ScoreRing({
         />
       </svg>
       <div className="score-ring-label">
-        <span className="score-ring-value" style={{ color }}>{score}</span>
-        <span className="score-ring-unit">%</span>
+        <span className="score-ring-value" style={{ color, fontSize }}>{score}</span>
+        <span className="score-ring-unit" style={{ fontSize: Math.round(fontSize * 0.55), color }}>%</span>
       </div>
     </div>
   );
 }
 
+/* ── Chip ────────────────────────────────────────────────────────── */
 export function Chip({
   children,
   tone = 'forest',
 }: {
   children: React.ReactNode;
-  tone?: 'forest' | 'gold' | 'clay' | 'muted';
+  tone?: 'forest' | 'gold' | 'clay' | 'muted' | 'ink';
 }) {
   return <span className={`ds-chip ds-chip-${tone}`}>{children}</span>;
 }
 
+/* ── Empty State ─────────────────────────────────────────────────── */
 export function EmptyState({
   icon,
   title,
@@ -64,13 +67,14 @@ export function EmptyState({
   return (
     <div className="ds-empty">
       <div className="ds-empty-icon">{icon ?? <Info />}</div>
-      <h3 className="ds-h3">{title}</h3>
-      <p className="ds-body ds-muted">{body}</p>
+      <h3 className="ds-h3" style={{ color: 'var(--color-ink)' }}>{title}</h3>
+      <p className="ds-body" style={{ color: 'var(--color-stone)', maxWidth: '360px', textAlign: 'center' }}>{body}</p>
       {action}
     </div>
   );
 }
 
+/* ── Alert Banner ────────────────────────────────────────────────── */
 export function AlertBanner({
   tone,
   title,
@@ -84,9 +88,9 @@ export function AlertBanner({
 }) {
   const Icon = tone === 'error' ? AlertCircle : tone === 'success' ? CheckCircle2 : Info;
   return (
-    <div className={`ds-alert ds-alert-${tone}`}>
+    <div className={`ds-alert ds-alert-${tone}`} style={{ flexWrap: 'wrap', gap: '16px' }}>
       <Icon className="ds-alert-icon" />
-      <div className="ds-alert-copy">
+      <div className="ds-alert-copy" style={{ flex: 1 }}>
         <strong>{title}</strong>
         <div>{children}</div>
       </div>
@@ -95,6 +99,18 @@ export function AlertBanner({
   );
 }
 
+/* ── Page Kicker ─────────────────────────────────────────────────── */
 export function PageKicker({ children }: { children: React.ReactNode }) {
   return <div className="ds-kicker">{children}</div>;
+}
+
+/* ── Loading Card ────────────────────────────────────────────────── */
+export function LoadingCard({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="ds-card" style={{ padding: '80px 32px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+      <div className="ds-spinner" />
+      <h3 className="ds-h3" style={{ color: 'var(--color-ink)' }}>{title}</h3>
+      <p className="ds-body" style={{ color: 'var(--color-stone)', maxWidth: '360px' }}>{body}</p>
+    </div>
+  );
 }

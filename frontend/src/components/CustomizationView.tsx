@@ -1,16 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  FileText,
-  RefreshCw,
-  AlertCircle,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  AlertTriangle,
-  Copy,
-  ChevronDown,
-  ChevronUp,
-  Sparkles,
+  FileText, RefreshCw, AlertCircle, ArrowRight, ArrowLeft,
+  CheckCircle2, AlertTriangle, Copy, ChevronDown, ChevronUp, Sparkles,
 } from 'lucide-react';
 import type { Student, JobMatch, CustomizationResponse } from '../types';
 import { getCustomization } from '../services/api';
@@ -21,10 +12,6 @@ interface CustomizationViewProps {
   onBack: () => void;
 }
 
-function Tag({ text, color }: { text: string; color: 'green' | 'amber' }) {
-  return <span className={`ds-chip ${color === 'green' ? 'ds-chip-forest' : 'ds-chip-gold'}`}>{text}</span>;
-}
-
 export const CustomizationView: React.FC<CustomizationViewProps> = ({ student, job, onBack }) => {
   const [data, setData] = useState<CustomizationResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,132 +20,131 @@ export const CustomizationView: React.FC<CustomizationViewProps> = ({ student, j
   const [coverText, setCoverText] = useState('');
   const [copied, setCopied] = useState(false);
   const [bulletsOpen, setBulletsOpen] = useState(true);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const regenerate = () => {
-    setData(null);
-    setError(null);
-    setCoverText('');
-    setLoading(true);
+    setData(null); setError(null); setCoverText(''); setLoading(true);
     getCustomization(student.id, job.job_id)
-      .then((result) => {
-        setData(result);
-        setCoverText(result.cover_letter.body);
-      })
+      .then(r => { setData(r); setCoverText(r.cover_letter.body); })
       .catch((err: any) => setError(err.message || 'Customization generation failed.'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      setError(null);
+    (async () => {
+      setLoading(true); setError(null);
       try {
-        const result = await getCustomization(student.id, job.job_id);
-        if (!cancelled) {
-          setData(result);
-          setCoverText(result.cover_letter.body);
-        }
-      } catch (err: any) {
-        if (!cancelled) setError(err.message || 'Customization generation failed.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
+        const r = await getCustomization(student.id, job.job_id);
+        if (!cancelled) { setData(r); setCoverText(r.cover_letter.body); }
+      } catch (err: any) { if (!cancelled) setError(err.message || 'Customization generation failed.'); }
+      finally { if (!cancelled) setLoading(false); }
+    })();
     return () => { cancelled = true; };
   }, [student.id, job.job_id]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(coverText).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(coverText).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
   const rc = data?.resume_customization;
   const cl = data?.cover_letter;
 
   return (
-    <div className="space-y-10 animate-fade-in">
-      <div className="space-y-4">
-        <button onClick={onBack} className="ds-btn-ghost">← Back to matches</button>
-        <div className="ds-kicker">
-          <FileText className="h-4 w-4" />
-          <span>Resume & cover letter</span>
+    <div className="animate-fade-in" style={{ maxWidth: '860px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '40px' }}>
+      <div>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', fontWeight: '600', color: 'var(--color-stone)', marginBottom: '20px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 0', transition: 'color .15s' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--color-ink)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--color-stone)')}>
+          ← Back to matches
+        </button>
+        <div className="ds-kicker" style={{ marginBottom: '16px' }}>
+          <FileText style={{ width: '16px', height: '16px' }} />
+          Resume & cover letter
         </div>
-        <h1 className="ds-h1">Tailored for {job.title}</h1>
-        <p className="ds-lead">{job.company} · for {student.name}</p>
+        <h1 className="ds-h2" style={{ color: 'var(--color-ink)', marginBottom: '8px' }}>Tailored for {job.title}</h1>
+        <p className="ds-lead" style={{ color: 'var(--color-stone)' }}>{job.company} · for {student.name}</p>
       </div>
 
-      {/* Loading */}
       {loading && (
-        <div className="ds-card p-16 text-center space-y-4">
-          <div className="ds-spinner mx-auto" />
-          <p className="ds-h3">Generating tailored materials…</p>
-          <p className="ds-body ds-muted">Your profile is being compared to this role.</p>
+        <div className="ds-card" style={{ padding: '80px 32px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <div className="ds-spinner" />
+          <h3 className="ds-h3" style={{ color: 'var(--color-ink)' }}>Generating tailored materials…</h3>
+          <p className="ds-body" style={{ color: 'var(--color-stone)' }}>Your profile is being compared to this role.</p>
         </div>
       )}
 
-      {/* Error */}
       {error && !loading && (
         <div className="ds-alert ds-alert-error">
           <AlertCircle className="ds-alert-icon" />
           <div className="ds-alert-copy">
             <strong>Generation error</strong>
             <div>{error}</div>
-            <button onClick={regenerate} className="ds-btn-ghost mt-2">Retry</button>
+            <button onClick={regenerate} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-forest)', fontWeight: '600', fontSize: '15px', padding: '8px 0' }}>Retry</button>
           </div>
         </div>
       )}
 
       {!loading && !error && data && rc && cl && (
         <>
-          {/* Tab bar */}
-          <div className="flex flex-wrap gap-2 ds-card p-1.5 w-fit">
-            {(['resume', 'cover'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-5 py-2.5 rounded-[12px] text-[16px] font-semibold cursor-pointer ${
-                  tab === t ? 'bg-forest text-white' : 'text-stone hover:text-ink hover:bg-cream'
-                }`}
-              >
-                {t === 'resume' ? 'Resume tailoring' : 'Cover letter'}
-              </button>
-            ))}
-            <button onClick={regenerate} className="ds-btn-ghost px-3">
-              <RefreshCw className="h-4 w-4" />
+          {/* Tab bar + regenerate */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <div className="ds-card" style={{ padding: '6px', display: 'inline-flex', gap: '4px' }}>
+              {(['resume', 'cover'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  style={{
+                    padding: '10px 22px', borderRadius: '11px',
+                    fontSize: '16px', fontWeight: '600', border: 'none', cursor: 'pointer',
+                    background: tab === t ? 'var(--color-forest)' : 'transparent',
+                    color: tab === t ? 'white' : 'var(--color-stone)',
+                    transition: 'all .15s ease',
+                  }}
+                  onMouseEnter={e => { if (tab !== t) e.currentTarget.style.background = 'var(--color-cream)'; }}
+                  onMouseLeave={e => { if (tab !== t) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {t === 'resume' ? 'Resume tailoring' : 'Cover letter'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={regenerate}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '11px', background: 'white', border: '1.5px solid var(--color-line)', fontSize: '15px', fontWeight: '600', color: 'var(--color-stone)', cursor: 'pointer', transition: 'all .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-ink)'; e.currentTarget.style.borderColor = 'var(--color-sage)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-stone)'; e.currentTarget.style.borderColor = 'var(--color-line)'; }}
+            >
+              <RefreshCw style={{ width: '15px', height: '15px' }} />
               Regenerate
             </button>
           </div>
 
-          {/* RESUME TAB */}
+          {/* Resume tab */}
           {tab === 'resume' && (
-            <div className="space-y-5">
-              {/* Prioritised skills */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {rc.prioritized_skills.length > 0 && (
-                <div className="ds-card p-8 space-y-4">
-                  <h3 className="ds-h3">Skills to highlight first</h3>
-                  <p className="ds-body ds-muted">Lead with these — they match the role directly.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {rc.prioritized_skills.map((s, i) => <Tag key={i} text={s} color="green" />)}
+                <div className="ds-card" style={{ padding: '32px 36px' }}>
+                  <h3 className="ds-h3" style={{ color: 'var(--color-ink)', marginBottom: '8px' }}>Skills to highlight first</h3>
+                  <p className="ds-body" style={{ color: 'var(--color-stone)', marginBottom: '20px' }}>Lead with these — they match the role directly.</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {rc.prioritized_skills.map((s, i) => (
+                      <span key={i} style={{ padding: '6px 14px', borderRadius: '999px', background: 'var(--color-leaf-bg)', color: 'var(--color-forest)', border: '1px solid rgba(26,66,32,.20)', fontSize: '14px', fontWeight: '600' }}>{s}</span>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Relevant experiences */}
               {rc.relevant_experiences.length > 0 && (
-                <div className="ds-card p-8 space-y-5">
-                  <h3 className="ds-h3">Most relevant experience</h3>
-                  <div className="space-y-3">
+                <div className="ds-card" style={{ padding: '32px 36px' }}>
+                  <h3 className="ds-h3" style={{ color: 'var(--color-ink)', marginBottom: '20px' }}>Most relevant experience</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {rc.relevant_experiences.map((ex, i) => (
-                      <div key={i} className="flex items-start gap-4 p-5 rounded-[16px] ds-card-inset">
-                        <ArrowRight className="h-5 w-5 text-forest shrink-0 mt-0.5" />
+                      <div key={i} className="ds-card-inset" style={{ padding: '20px', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                        <ArrowRight style={{ width: '18px', height: '18px', color: 'var(--color-forest)', flexShrink: 0, marginTop: '3px' }} />
                         <div>
-                          <div className="text-[18px] font-serif font-bold text-ink">{ex.title} <span className="font-sans font-normal text-stone text-[16px]">at {ex.organization}</span></div>
-                          <div className="ds-body ds-muted mt-1">{ex.why_relevant}</div>
+                          <div style={{ fontSize: '18px', fontFamily: 'var(--font-serif)', fontWeight: '700', color: 'var(--color-ink)', marginBottom: '6px' }}>
+                            {ex.title} <span style={{ fontFamily: 'var(--font-sans)', fontSize: '16px', color: 'var(--color-stone)', fontWeight: '400' }}>at {ex.organization}</span>
+                          </div>
+                          <p style={{ fontSize: '16px', color: 'var(--color-stone)', lineHeight: '1.6', margin: 0 }}>{ex.why_relevant}</p>
                         </div>
                       </div>
                     ))}
@@ -166,17 +152,16 @@ export const CustomizationView: React.FC<CustomizationViewProps> = ({ student, j
                 </div>
               )}
 
-              {/* Relevant projects */}
               {rc.relevant_projects.length > 0 && (
-                <div className="ds-card p-8 space-y-5">
-                  <h3 className="ds-h3">Most relevant projects</h3>
-                  <div className="space-y-3">
+                <div className="ds-card" style={{ padding: '32px 36px' }}>
+                  <h3 className="ds-h3" style={{ color: 'var(--color-ink)', marginBottom: '20px' }}>Most relevant projects</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {rc.relevant_projects.map((p, i) => (
-                      <div key={i} className="flex items-start gap-4 p-5 rounded-[16px] ds-card-inset">
-                        <ArrowRight className="h-5 w-5 text-gold shrink-0 mt-0.5" />
+                      <div key={i} className="ds-card-inset" style={{ padding: '20px', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                        <ArrowRight style={{ width: '18px', height: '18px', color: 'var(--color-gold)', flexShrink: 0, marginTop: '3px' }} />
                         <div>
-                          <div className="text-[18px] font-serif font-bold text-ink">{p.title}</div>
-                          <div className="ds-body ds-muted mt-1">{p.why_relevant}</div>
+                          <div style={{ fontSize: '18px', fontFamily: 'var(--font-serif)', fontWeight: '700', color: 'var(--color-ink)', marginBottom: '6px' }}>{p.title}</div>
+                          <p style={{ fontSize: '16px', color: 'var(--color-stone)', lineHeight: '1.6', margin: 0 }}>{p.why_relevant}</p>
                         </div>
                       </div>
                     ))}
@@ -184,36 +169,35 @@ export const CustomizationView: React.FC<CustomizationViewProps> = ({ student, j
                 </div>
               )}
 
-              {/* Rewritten bullets — side-by-side */}
               {rc.rewritten_bullets.length > 0 && (
-                <div className="ds-card overflow-hidden">
-                  <button
-                    onClick={() => setBulletsOpen(!bulletsOpen)}
-                    className="w-full flex items-center justify-between px-8 py-5 hover:bg-cream transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Sparkles className="h-5 w-5 text-gold" />
-                      <span className="ds-h3">Suggested bullet rewrites</span>
-                      <span className="ds-chip ds-chip-muted">{rc.rewritten_bullets.length}</span>
+                <div className="ds-card" style={{ overflow: 'hidden' }}>
+                  <button onClick={() => setBulletsOpen(!bulletsOpen)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 32px', background: 'none', border: 'none', cursor: 'pointer', transition: 'background .15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-paper)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <Sparkles style={{ width: '18px', height: '18px', color: 'var(--color-gold)' }} />
+                      <h3 className="ds-h3" style={{ color: 'var(--color-ink)' }}>Suggested bullet rewrites</h3>
+                      <span style={{ padding: '3px 10px', borderRadius: '999px', background: 'var(--color-cream)', color: 'var(--color-stone)', border: '1px solid var(--color-line)', fontSize: '13px', fontWeight: '700' }}>{rc.rewritten_bullets.length}</span>
                     </div>
-                    {bulletsOpen ? <ChevronUp className="h-5 w-5 text-stone" /> : <ChevronDown className="h-5 w-5 text-stone" />}
+                    {bulletsOpen ? <ChevronUp style={{ width: '18px', height: '18px', color: 'var(--color-stone)' }} /> : <ChevronDown style={{ width: '18px', height: '18px', color: 'var(--color-stone)' }} />}
                   </button>
                   {bulletsOpen && (
-                    <div className="divide-y divide-line border-t border-line">
+                    <div style={{ borderTop: '1px solid var(--color-line)' }}>
                       {rc.rewritten_bullets.map((b, i) => (
-                        <div key={i} className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                            <div className="ds-label !mb-0 flex items-center gap-2">
-                              <ArrowLeft className="h-4 w-4" /> Original
+                        <div key={i} style={{ padding: '28px 32px', borderBottom: i < rc.rewritten_bullets.length - 1 ? '1px solid var(--color-line)' : 'none', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--color-stone)' }}>
+                              <ArrowLeft style={{ width: '14px', height: '14px' }} /> Original
                             </div>
-                            <p className="ds-body ds-muted ds-card-inset p-5">{b.original}</p>
+                            <p className="ds-card-inset" style={{ padding: '16px 18px', fontSize: '16px', lineHeight: '1.65', color: 'var(--color-stone)' }}>{b.original}</p>
                           </div>
-                          <div className="space-y-2">
-                            <div className="ds-label !mb-0 !text-forest flex items-center gap-2">
-                              <ArrowRight className="h-4 w-4" /> Suggested
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--color-forest)' }}>
+                              <ArrowRight style={{ width: '14px', height: '14px' }} /> Suggested
                             </div>
-                            <p className="ds-body p-5 rounded-[16px] bg-forest/5 border border-forest/20">{b.suggested}</p>
-                            <p className="ds-caption italic">{b.change_note}</p>
+                            <p style={{ padding: '16px 18px', borderRadius: '12px', fontSize: '16px', lineHeight: '1.65', color: 'var(--color-charcoal)', background: 'var(--color-leaf-bg)', border: '1px solid rgba(26,66,32,.15)' }}>{b.suggested}</p>
+                            <p style={{ fontSize: '13px', color: 'var(--color-stone)', fontStyle: 'italic', marginTop: '8px' }}>{b.change_note}</p>
                           </div>
                         </div>
                       ))}
@@ -222,68 +206,64 @@ export const CustomizationView: React.FC<CustomizationViewProps> = ({ student, j
                 </div>
               )}
 
-              {/* Section order */}
               {rc.section_order_recommendation.length > 0 && (
-                <div className="ds-card p-8 space-y-4">
-                  <h3 className="ds-h3">Recommended section order</h3>
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="ds-card" style={{ padding: '28px 32px' }}>
+                  <h3 className="ds-h3" style={{ color: 'var(--color-ink)', marginBottom: '16px' }}>Recommended section order</h3>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
                     {rc.section_order_recommendation.map((sec, i) => (
                       <React.Fragment key={i}>
-                        <span className="ds-chip ds-chip-muted">{i + 1}. {sec}</span>
-                        {i < rc.section_order_recommendation.length - 1 && (
-                          <ArrowRight className="h-4 w-4 text-stone" />
-                        )}
+                        <span style={{ padding: '6px 14px', borderRadius: '999px', background: 'var(--color-cream)', color: 'var(--color-charcoal)', border: '1px solid var(--color-line)', fontSize: '14px', fontWeight: '600' }}>{i + 1}. {sec}</span>
+                        {i < rc.section_order_recommendation.length - 1 && <ArrowRight style={{ width: '14px', height: '14px', color: 'var(--color-stone)' }} />}
                       </React.Fragment>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Tailoring notes */}
               {rc.tailoring_notes && (
-                <div className="ds-card-inset p-6 flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-gold shrink-0 mt-0.5" />
-                  <p className="ds-body"><span className="font-semibold text-forest">Tailoring strategy: </span>{rc.tailoring_notes}</p>
+                <div className="ds-card-inset" style={{ padding: '20px 24px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <Sparkles style={{ width: '18px', height: '18px', color: 'var(--color-gold)', flexShrink: 0, marginTop: '2px' }} />
+                  <p style={{ fontSize: '16px', lineHeight: '1.65', color: 'var(--color-charcoal)', margin: 0 }}>
+                    <strong style={{ color: 'var(--color-forest)' }}>Tailoring strategy: </strong>{rc.tailoring_notes}
+                  </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* COVER LETTER TAB */}
+          {/* Cover letter tab */}
           {tab === 'cover' && (
-            <div className="space-y-4">
-              {/* Subject line */}
-              <div className="ds-card p-8 space-y-3">
-                <div className="ds-label">Subject line</div>
-                <p className="text-[18px] font-semibold text-ink">{cl.subject_line}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="ds-card" style={{ padding: '24px 32px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--color-stone)', marginBottom: '10px' }}>Subject line</div>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--color-ink)' }}>{cl.subject_line}</p>
               </div>
 
-              {/* Hallucination check badge */}
-              <div className={`ds-chip ${cl.hallucination_check ? 'ds-chip-forest' : 'ds-chip-clay'}`}>
-                {cl.hallucination_check
-                  ? <><CheckCircle2 className="h-4 w-4 mr-1.5" /> Verified: no invented content</>
-                  : <><AlertTriangle className="h-4 w-4 mr-1.5" /> Review carefully — may not match the profile</>
-                }
+              <div>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '5px 14px', borderRadius: '999px', fontSize: '14px', fontWeight: '600', ...(cl.hallucination_check ? { background: 'var(--color-leaf-bg)', color: 'var(--color-forest)', border: '1px solid rgba(26,66,32,.20)' } : { background: 'var(--color-clay-light)', color: 'var(--color-clay)', border: '1px solid rgba(192,82,40,.22)' }) }}>
+                  {cl.hallucination_check
+                    ? <><CheckCircle2 style={{ width: '14px', height: '14px' }} /> Verified: no invented content</>
+                    : <><AlertTriangle style={{ width: '14px', height: '14px' }} /> Review carefully — may not match profile</>}
+                </span>
               </div>
 
-              {/* Editable body */}
-              <div className="ds-card overflow-hidden">
-                <div className="flex items-center justify-between px-8 py-4 border-b border-line bg-cream">
-                  <span className="text-[16px] font-semibold text-ink">Cover letter — review & edit</span>
-                  <button onClick={handleCopy} className="ds-btn-secondary !py-2.5 !px-4">
-                    <Copy className="h-4 w-4" />
-                    {copied ? 'Copied' : 'Copy'}
+              <div className="ds-card" style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 28px', borderBottom: '1px solid var(--color-line)', background: 'var(--color-paper)' }}>
+                  <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--color-ink)' }}>Cover letter — review & edit</span>
+                  <button onClick={handleCopy}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 16px', borderRadius: '10px', background: 'white', border: '1.5px solid var(--color-line)', fontSize: '14px', fontWeight: '600', color: 'var(--color-ink)', cursor: 'pointer', transition: 'all .15s' }}>
+                    <Copy style={{ width: '14px', height: '14px' }} />
+                    {copied ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
                 <textarea
-                  ref={textareaRef}
                   value={coverText}
-                  onChange={(e) => setCoverText(e.target.value)}
+                  onChange={e => setCoverText(e.target.value)}
                   rows={18}
-                  className="w-full px-8 py-6 ds-body resize-y focus:outline-none bg-paper"
+                  style={{ width: '100%', padding: '28px 32px', fontSize: '16px', lineHeight: '1.7', resize: 'vertical', border: 'none', outline: 'none', background: 'var(--color-paper)', fontFamily: 'var(--font-sans)', color: 'var(--color-charcoal)' }}
                 />
               </div>
-              <p className="ds-caption italic">
+              <p style={{ fontSize: '14px', color: 'var(--color-stone)', fontStyle: 'italic' }}>
                 Edit before copying. Regenerate restores the original draft.
               </p>
             </div>

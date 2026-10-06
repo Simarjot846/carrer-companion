@@ -114,3 +114,75 @@ export async function sendAssistantMessage(
   }
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// M4.1 — Application Tracking API calls
+// ---------------------------------------------------------------------------
+import type {
+  Application, ApplicationCreate, ApplicationUpdate, DashboardSummary,
+} from '../types';
+
+export async function createApplication(
+  studentId: number,
+  body: ApplicationCreate,
+): Promise<Application> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/applications`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to create application' }));
+    throw new Error(err.detail || 'Failed to create application');
+  }
+  return res.json();
+}
+
+export async function listApplications(
+  studentId: number,
+  filters?: { company?: string; role?: string; status?: string; date_from?: string; date_to?: string },
+): Promise<Application[]> {
+  const params = new URLSearchParams();
+  if (filters?.company) params.set('company', filters.company);
+  if (filters?.role) params.set('role', filters.role);
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.date_from) params.set('date_from', filters.date_from);
+  if (filters?.date_to) params.set('date_to', filters.date_to);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/students/${studentId}/applications${qs}`);
+  if (!res.ok) throw new Error('Failed to fetch applications');
+  return res.json();
+}
+
+export async function updateApplication(
+  studentId: number,
+  applicationId: number,
+  body: ApplicationUpdate,
+): Promise<Application> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/applications/${applicationId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to update application' }));
+    throw new Error(err.detail || 'Failed to update application');
+  }
+  return res.json();
+}
+
+export async function deleteApplication(
+  studentId: number,
+  applicationId: number,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/applications/${applicationId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to delete application');
+}
+
+export async function getApplicationDashboard(studentId: number): Promise<DashboardSummary> {
+  const res = await fetch(`${API_BASE}/students/${studentId}/applications/dashboard`);
+  if (!res.ok) throw new Error('Failed to fetch application dashboard');
+  return res.json();
+}

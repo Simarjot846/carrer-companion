@@ -12,59 +12,94 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose }) 
   if (!job) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/70 backdrop-blur-sm animate-fade-in">
-      <div className="ds-card max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8 sm:p-10 space-y-8 text-left">
-        <div className="flex items-start justify-between gap-4 pb-6 border-b border-line">
-          <div className="space-y-3">
-            <div className="ds-label !mb-0">
+    <div
+      className="animate-fade-in"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px',
+        background: 'rgba(15,20,16,.75)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div
+        className="ds-card"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: '680px', width: '100%', maxHeight: '90vh',
+          overflowY: 'auto', padding: '40px 44px',
+          display: 'flex', flexDirection: 'column', gap: '32px',
+        }}
+      >
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', paddingBottom: '24px', borderBottom: '1px solid var(--color-line)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--color-stone)' }}>
               {job.posting_type} · {job.experience_level}
-            </div>
-            <h3 className="ds-h2">{job.title}</h3>
-            <div className="flex flex-wrap items-center gap-4 ds-body ds-muted">
-              <span className="inline-flex items-center gap-2 font-semibold text-ink">
-                <Building2 className="h-4 w-4" />
+            </span>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', fontWeight: '700', color: 'var(--color-ink)', lineHeight: 1.15 }}>{job.title}</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', fontSize: '16px', color: 'var(--color-stone)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', fontWeight: '600', color: 'var(--color-charcoal)' }}>
+                <Building2 style={{ width: '16px', height: '16px', color: 'var(--color-stone)' }} />
                 {job.company}
               </span>
-              <span className="inline-flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
+                <MapPin style={{ width: '16px', height: '16px' }} />
                 {job.location}
               </span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-[12px] bg-cream hover:bg-mist text-stone hover:text-ink cursor-pointer">
-            <X className="h-5 w-5" />
+          <button
+            onClick={onClose}
+            style={{
+              width: '40px', height: '40px', borderRadius: '11px', flexShrink: 0,
+              background: 'var(--color-cream)', border: '1px solid var(--color-line)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'var(--color-stone)', transition: 'all .15s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-mist)'; e.currentTarget.style.color = 'var(--color-ink)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-cream)'; e.currentTarget.style.color = 'var(--color-stone)'; }}
+          >
+            <X style={{ width: '18px', height: '18px' }} />
           </button>
         </div>
 
-        <div className="ds-card-inset p-6 flex items-start gap-6">
+        {/* Match analysis */}
+        <div className="ds-card-inset" style={{ padding: '24px', display: 'flex', alignItems: 'flex-start', gap: '24px', flexWrap: 'wrap' }}>
           <ScoreRing score={job.match_score} size={96} />
-          <div>
-            <div className="ds-label">Match analysis</div>
-            <p className="ds-body">{job.reasoning}</p>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--color-stone)', marginBottom: '10px' }}>Match Analysis</div>
+            <p style={{ fontSize: '16px', lineHeight: '1.65', color: 'var(--color-charcoal)' }}>{job.reasoning}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="ds-card-inset p-6 space-y-3">
-            <h4 className="ds-label !mb-0 flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-forest" />
-              Required skills ({job.required_skills.length})
-            </h4>
-            <div className="flex flex-wrap gap-2">
+        {/* Skills */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="ds-card-inset" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <CheckCircle2 style={{ width: '16px', height: '16px', color: 'var(--color-forest)' }} />
+              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-forest)' }}>
+                Required ({job.required_skills.length})
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
               {job.required_skills.map((skill, i) => (
                 <Chip key={i} tone="forest">{skill}</Chip>
               ))}
             </div>
           </div>
-          <div className="p-6 rounded-[16px] bg-[color-mix(in_srgb,var(--color-clay)_6%,white)] border border-[color-mix(in_srgb,var(--color-clay)_22%,transparent)] space-y-3">
-            <h4 className="ds-label !mb-0 !text-clay flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Skill gaps ({job.missing_skills.length})
-            </h4>
+          <div style={{ padding: '20px', borderRadius: '14px', background: 'var(--color-clay-light)', border: '1px solid rgba(192,82,40,.20)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <AlertTriangle style={{ width: '16px', height: '16px', color: 'var(--color-clay)' }} />
+              <span style={{ fontSize: '13px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-clay)' }}>
+                Gaps ({job.missing_skills.length})
+              </span>
+            </div>
             {job.missing_skills.length === 0 ? (
-              <p className="ds-body text-forest font-semibold">Complete skill alignment for this role.</p>
+              <p style={{ fontSize: '15px', color: 'var(--color-forest)', fontWeight: '600' }}>Complete skill alignment.</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {job.missing_skills.map((skill, i) => (
                   <Chip key={i} tone="clay">{skill}</Chip>
                 ))}
@@ -73,15 +108,30 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose }) 
           </div>
         </div>
 
-        <div className="space-y-3 pt-2 border-t border-line">
-          <h4 className="ds-label">Job description</h4>
-          <p className="ds-body ds-muted whitespace-pre-line ds-card-inset p-6">
-            {job.description}
-          </p>
+        {/* Description */}
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--color-stone)', marginBottom: '12px' }}>
+            Job Description
+          </div>
+          <div className="ds-card-inset" style={{ padding: '20px' }}>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: 'var(--color-charcoal)', whiteSpace: 'pre-line' }}>{job.description}</p>
+          </div>
         </div>
 
-        <div className="flex justify-end">
-          <button onClick={onClose} className="ds-btn-secondary">Close</button>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '12px 24px', borderRadius: '11px',
+              background: 'white', border: '1.5px solid var(--color-line)',
+              fontSize: '16px', fontWeight: '600', color: 'var(--color-ink)', cursor: 'pointer',
+              transition: 'all .15s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-sage)'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-line)'; }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 
 class StudentCreate(BaseModel):
@@ -243,3 +243,80 @@ class AssistantChatRequest(BaseModel):
 class AssistantChatResponse(BaseModel):
     reply: str
     updated_history: List[ChatTurn] = []
+
+
+# ---------------------------------------------------------------------------
+# M4.1 — Application Tracking
+# ---------------------------------------------------------------------------
+
+class ApplicationCreate(BaseModel):
+    company_name: str
+    job_title: str
+    job_description: Optional[str] = None
+    job_posting_id: Optional[int] = None
+    application_date: Optional[str] = None   # ISO date string "YYYY-MM-DD"
+    deadline: Optional[str] = None           # ISO date string "YYYY-MM-DD"
+    status: str = "Saved"
+    interview_date: Optional[str] = None     # ISO datetime string
+    interview_status: Optional[str] = "Not Scheduled"
+    notes: Optional[str] = None
+    job_url: Optional[str] = None
+    resume_version_note: Optional[str] = None
+    cover_letter_version_note: Optional[str] = None
+
+
+class ApplicationUpdate(BaseModel):
+    company_name: Optional[str] = None
+    job_title: Optional[str] = None
+    job_description: Optional[str] = None
+    application_date: Optional[str] = None
+    deadline: Optional[str] = None
+    status: Optional[str] = None
+    interview_date: Optional[str] = None
+    interview_status: Optional[str] = None
+    notes: Optional[str] = None
+    job_url: Optional[str] = None
+    resume_version_note: Optional[str] = None
+    cover_letter_version_note: Optional[str] = None
+
+
+class ApplicationOut(BaseModel):
+    id: int
+    student_id: int
+    company_name: str
+    job_title: str
+    job_description: Optional[str] = None
+    job_posting_id: Optional[int] = None
+    application_date: Optional[str] = None
+    deadline: Optional[str] = None
+    status: str
+    interview_date: Optional[str] = None
+    interview_status: Optional[str] = None
+    notes: Optional[str] = None
+    job_url: Optional[str] = None
+    resume_version_note: Optional[str] = None
+    cover_letter_version_note: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UpcomingItem(BaseModel):
+    application_id: int
+    company_name: str
+    job_title: str
+    type: str       # "deadline" | "interview"
+    date: str       # ISO string
+    days_away: int
+
+
+class DashboardSummary(BaseModel):
+    total_applications: int
+    active_applications: int         # not Rejected / Withdrawn
+    applied_count: int
+    interview_scheduled: int
+    offers_received: int
+    rejected_count: int
+    upcoming: List[UpcomingItem]     # deadlines/interviews within next 7 days

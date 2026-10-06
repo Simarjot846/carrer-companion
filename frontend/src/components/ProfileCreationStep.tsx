@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { UserPlus, ArrowRight, Sparkles, UserCheck } from 'lucide-react';
+import { UserPlus, ArrowRight, Sparkles, UserCheck, ChevronRight } from 'lucide-react';
 import type { Student } from '../types';
 import { createStudent } from '../services/api';
-import { AlertBanner } from './ui';
 
 interface ProfileCreationStepProps {
   onProfileCreated: (student: Student) => void;
@@ -11,18 +10,16 @@ interface ProfileCreationStepProps {
 }
 
 const PRESET_DEMO_USERS = [
-  { name: "Alex Chen", email: "alex.chen@berkeley.edu", role: "Software Engineering Intern - Backend" },
-  { name: "Maya Patel", email: "maya.patel@columbia.edu", role: "Data Science & Analytics Intern" },
-  { name: "Jordan Rivera", email: "jordan.rivera@nyu.edu", role: "Frontend Developer Intern" },
-  { name: "Priya Sharma", email: "priya.sharma@stanford.edu", role: "Machine Learning & AI Research Intern" },
-  { name: "David Kim", email: "david.kim@northwestern.edu", role: "Associate Product Manager Intern" },
-  { name: "Samantha Taylor", email: "samantha.taylor@risd.edu", role: "UI/UX Product Design Intern" },
+  { name: 'Alex Chen',       email: 'alex.chen@berkeley.edu',        role: 'Software Engineering Intern — Backend' },
+  { name: 'Maya Patel',      email: 'maya.patel@columbia.edu',       role: 'Data Science & Analytics Intern' },
+  { name: 'Jordan Rivera',   email: 'jordan.rivera@nyu.edu',         role: 'Frontend Developer Intern' },
+  { name: 'Priya Sharma',    email: 'priya.sharma@stanford.edu',     role: 'Machine Learning & AI Research Intern' },
+  { name: 'David Kim',       email: 'david.kim@northwestern.edu',    role: 'Associate Product Manager Intern' },
+  { name: 'Samantha Taylor', email: 'samantha.taylor@risd.edu',      role: 'UI/UX Product Design Intern' },
 ];
 
 export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
-  onProfileCreated,
-  existingStudents,
-  onSelectExisting,
+  onProfileCreated, existingStudents, onSelectExisting,
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -32,7 +29,6 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !email.trim()) return;
-
     setLoading(true);
     setError(null);
     try {
@@ -54,7 +50,7 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
       const student = await createStudent(presetName, presetEmail);
       onProfileCreated(student);
     } catch (err: any) {
-      const found = existingStudents.find((s) => s.email.toLowerCase() === presetEmail.toLowerCase());
+      const found = existingStudents.find(s => s.email.toLowerCase() === presetEmail.toLowerCase());
       if (found) {
         onSelectExisting(found);
       } else {
@@ -66,57 +62,69 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
   };
 
   return (
-    <div className="space-y-12 animate-fade-in">
-      <div className="text-center space-y-4">
-        <div className="ds-kicker">
-          <Sparkles className="h-4 w-4 text-gold" />
-          <span>Step 1 of 3 · Profile</span>
+    <div className="animate-fade-in" style={{ maxWidth: '960px', margin: '0 auto' }}>
+      {/* Page header */}
+      <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+        <div className="ds-kicker" style={{ marginBottom: '20px' }}>
+          <Sparkles style={{ width: '16px', height: '16px', color: 'var(--color-gold)' }} />
+          Step 1 of 3 · Candidate Profile
         </div>
-        <h1 className="ds-h1">Create your candidate profile</h1>
-        <p className="ds-lead max-w-xl mx-auto">
-          Start with your name and email, or pick a sample candidate if you are running a demo.
+        <h1 className="ds-h1" style={{ color: 'var(--color-ink)', marginBottom: '16px' }}>
+          Create your profile
+        </h1>
+        <p className="ds-lead" style={{ maxWidth: '520px', margin: '0 auto', color: 'var(--color-stone)' }}>
+          Enter your details below or pick a sample candidate for a quick demo.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-        <div className="lg:col-span-7 ds-card p-8 sm:p-10 space-y-8">
-          <div className="flex items-center gap-4 pb-6 border-b border-line">
-            <div className="h-12 w-12 rounded-full bg-forest/10 text-forest flex items-center justify-center">
-              <UserPlus className="h-6 w-6" />
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr',
+        gap: '32px', alignItems: 'start',
+      }} className="profile-grid">
+
+        {/* Form card */}
+        <div className="ds-card" style={{ padding: '40px 40px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '32px', paddingBottom: '28px', borderBottom: '1px solid var(--color-line)' }}>
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '13px',
+              background: 'var(--color-leaf-bg)', color: 'var(--color-forest)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <UserPlus style={{ width: '22px', height: '22px' }} />
             </div>
             <div>
-              <h2 className="ds-h3">New candidate</h2>
-              <p className="ds-caption mt-1">This profile is the source of truth for matching.</p>
+              <div className="ds-h4" style={{ color: 'var(--color-ink)', marginBottom: '4px' }}>New Candidate</div>
+              <div className="ds-small" style={{ color: 'var(--color-stone)' }}>Your profile is the source of truth for matching</div>
             </div>
           </div>
 
           {error && (
-            <AlertBanner tone="error" title="Could not create profile">
-              {error}
-            </AlertBanner>
+            <div className="ds-alert ds-alert-error" style={{ marginBottom: '24px' }}>
+              <div className="ds-alert-copy">{error}</div>
+            </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6 text-left">
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <label className="ds-label">Full name</label>
+              <label className="ds-label-field">Full Name</label>
               <input
                 type="text"
                 required
                 placeholder="e.g. Alex Chen"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={e => setName(e.target.value)}
                 className="ds-input"
               />
             </div>
 
             <div>
-              <label className="ds-label">Email address</label>
+              <label className="ds-label-field">Email Address</label>
               <input
                 type="email"
                 required
                 placeholder="e.g. alex.chen@university.edu"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={e => setEmail(e.target.value)}
                 className="ds-input"
               />
             </div>
@@ -124,63 +132,93 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
             <button
               type="submit"
               disabled={loading || !name.trim() || !email.trim()}
-              className="ds-btn-primary w-full"
+              className="ds-btn-primary"
+              style={{ marginTop: '8px', width: '100%', justifyContent: 'center' }}
             >
               {loading ? (
-                <div className="ds-spinner !border-white/30 !border-t-white" />
+                <div className="ds-spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }} />
               ) : (
                 <>
-                  <span>Create candidate profile</span>
-                  <ArrowRight className="h-5 w-5 text-gold" />
+                  Create Profile
+                  <ArrowRight style={{ width: '18px', height: '18px', color: 'var(--color-amber)' }} />
                 </>
               )}
             </button>
           </form>
         </div>
 
-        <div className="lg:col-span-5 space-y-6">
-          <div className="ds-card p-8 space-y-5">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-gold" />
-              <h3 className="text-[18px] font-serif font-bold text-ink">Quick demo presets</h3>
-            </div>
-            <p className="ds-body ds-muted">One click loads a sample candidate.</p>
+        {/* Presets + existing */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            <div className="space-y-2">
-              {PRESET_DEMO_USERS.map((preset) => (
+          {/* Quick demo presets */}
+          <div className="ds-card" style={{ padding: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <Sparkles style={{ width: '18px', height: '18px', color: 'var(--color-gold)' }} />
+              <span className="ds-h4" style={{ color: 'var(--color-ink)' }}>Quick Demo Presets</span>
+            </div>
+            <p className="ds-body" style={{ color: 'var(--color-stone)', marginBottom: '24px' }}>
+              One click to load a sample candidate and jump straight to matching.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {PRESET_DEMO_USERS.map(preset => (
                 <button
                   key={preset.email}
                   onClick={() => handleQuickPreset(preset.name, preset.email)}
                   disabled={loading}
-                  className="w-full text-left p-4 rounded-[16px] ds-card-inset hover:border-forest/40 transition-all group flex items-center justify-between cursor-pointer disabled:opacity-50"
+                  style={{
+                    width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '14px 16px', borderRadius: '12px',
+                    background: 'var(--color-paper)', border: '1.5px solid var(--color-line)',
+                    cursor: 'pointer', transition: 'all .15s ease',
+                    gap: '12px',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = 'var(--color-sage)';
+                    e.currentTarget.style.background = 'var(--color-leaf-bg)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = 'var(--color-line)';
+                    e.currentTarget.style.background = 'var(--color-paper)';
+                  }}
                 >
                   <div>
-                    <div className="text-[16px] font-semibold text-ink group-hover:text-forest">
+                    <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-ink)', marginBottom: '2px' }}>
                       {preset.name}
                     </div>
-                    <div className="ds-caption mt-1">{preset.role}</div>
+                    <div style={{ fontSize: '14px', color: 'var(--color-stone)' }}>{preset.role}</div>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-stone group-hover:text-forest group-hover:translate-x-0.5 transition-all" />
+                  <ChevronRight style={{ width: '16px', height: '16px', color: 'var(--color-sage)', flexShrink: 0 }} />
                 </button>
               ))}
             </div>
           </div>
 
+          {/* Existing candidates */}
           {existingStudents.length > 0 && (
-            <div className="ds-card p-8 space-y-4">
-              <h4 className="ds-label !mb-0 flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-forest" />
-                Existing profiles ({existingStudents.length})
-              </h4>
-              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                {existingStudents.map((st) => (
+            <div className="ds-card" style={{ padding: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <UserCheck style={{ width: '18px', height: '18px', color: 'var(--color-forest)' }} />
+                <span className="ds-h4" style={{ color: 'var(--color-ink)' }}>
+                  Existing Profiles <span style={{ fontSize: '16px', color: 'var(--color-stone)', fontWeight: '600' }}>({existingStudents.length})</span>
+                </span>
+              </div>
+              <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {existingStudents.map(st => (
                   <button
                     key={st.id}
                     onClick={() => onSelectExisting(st)}
-                    className="w-full text-left px-4 py-3 rounded-[14px] ds-card-inset hover:border-forest/30 flex items-center justify-between cursor-pointer"
+                    style={{
+                      width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '12px 14px', borderRadius: '10px',
+                      background: 'var(--color-paper)', border: '1px solid var(--color-line)',
+                      cursor: 'pointer', transition: 'all .15s ease', gap: '8px',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-cream)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-paper)'; }}
                   >
-                    <span className="text-[16px] text-ink font-medium">{st.name}</span>
-                    <span className="ds-caption">{st.email}</span>
+                    <span style={{ fontSize: '16px', fontWeight: '600', color: 'var(--color-ink)' }}>{st.name}</span>
+                    <span style={{ fontSize: '14px', color: 'var(--color-stone)' }}>{st.email}</span>
                   </button>
                 ))}
               </div>
@@ -188,6 +226,12 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
           )}
         </div>
       </div>
+
+      <style>{`
+        @media (min-width: 768px) {
+          .profile-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 };

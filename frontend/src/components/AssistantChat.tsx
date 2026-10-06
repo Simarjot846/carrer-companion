@@ -11,7 +11,7 @@ const STARTER_PROMPTS = [
   'What are my strongest skills for software engineering roles?',
   'Which job types match my background best?',
   'What should I work on to improve my profile?',
-  'How do I prepare for a technical interview for my matches?',
+  'How should I prepare for a technical interview?',
 ];
 
 export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
@@ -22,7 +22,6 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Scroll to bottom on new message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, loading]);
@@ -33,17 +32,13 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
     setInput('');
     setError(null);
     setLoading(true);
-
-    // Optimistically add user message
     const optimistic: ChatTurn[] = [...history, { role: 'user', content: userMsg }];
     setHistory(optimistic);
-
     try {
       const res = await sendAssistantMessage(student.id, userMsg, history);
       setHistory(res.updated_history);
     } catch (err: any) {
       setError(err.message || 'Assistant failed to respond. Please try again.');
-      // Remove the optimistic user message on failure
       setHistory(history);
     } finally {
       setLoading(false);
@@ -52,33 +47,43 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send(input);
-    }
-  };
-
-  const clearChat = () => {
-    setHistory([]);
-    setError(null);
-    setInput('');
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
   };
 
   return (
-    <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-200px)] min-h-[520px] animate-fade-in">
-      <div className="space-y-3 pb-6">
-        <div className="ds-kicker">
-          <Bot className="h-4 w-4" />
-          <span>Career assistant</span>
+    <div
+      className="animate-fade-in"
+      style={{
+        maxWidth: '760px', margin: '0 auto',
+        display: 'flex', flexDirection: 'column',
+        height: 'calc(100vh - 200px)', minHeight: '560px',
+      }}
+    >
+      {/* Header */}
+      <div style={{ paddingBottom: '24px', borderBottom: '1px solid var(--color-line)', marginBottom: '24px' }}>
+        <div className="ds-kicker" style={{ marginBottom: '16px' }}>
+          <Bot style={{ width: '16px', height: '16px' }} />
+          Career assistant
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <div className="text-left">
-            <h1 className="ds-h1">Career assistant</h1>
-            <p className="ds-lead mt-2">Answers grounded in {student.name}'s verified profile.</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h1 className="ds-h2" style={{ color: 'var(--color-ink)', marginBottom: '6px' }}>Career assistant</h1>
+            <p className="ds-body" style={{ color: 'var(--color-stone)' }}>Answers grounded in {student.name}'s verified profile.</p>
           </div>
           {history.length > 0 && (
-            <button onClick={clearChat} className="ds-btn-secondary !py-3">
-              <RefreshCw className="h-4 w-4" />
+            <button
+              onClick={() => { setHistory([]); setError(null); setInput(''); }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                padding: '10px 18px', borderRadius: '11px',
+                background: 'white', border: '1.5px solid var(--color-line)',
+                fontSize: '15px', fontWeight: '600', color: 'var(--color-ink)', cursor: 'pointer',
+                transition: 'all .15s ease',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-sage)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-line)'; }}
+            >
+              <RefreshCw style={{ width: '15px', height: '15px' }} />
               New conversation
             </button>
           )}
@@ -86,27 +91,43 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
       </div>
 
       {/* Message area */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-1 pb-4">
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', paddingRight: '4px', paddingBottom: '16px' }}>
+
         {/* Welcome state */}
         {history.length === 0 && !loading && (
-          <div className="space-y-5">
-            <div className="ds-card p-8 space-y-3 text-left">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-forest/10 flex items-center justify-center">
-                  <Sparkles className="h-6 w-6 text-gold" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="ds-card" style={{ padding: '28px 32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{
+                  width: '52px', height: '52px', borderRadius: '50%', flexShrink: 0,
+                  background: 'var(--color-leaf-bg)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Sparkles style={{ width: '24px', height: '24px', color: 'var(--color-gold)' }} />
                 </div>
                 <div>
-                  <p className="text-[18px] font-serif font-bold text-ink">Hi {student.name}.</p>
-                  <p className="ds-body ds-muted mt-1">Ask about your profile, matches, skill gaps, or interview prep.</p>
+                  <p style={{ fontSize: '20px', fontFamily: 'var(--font-serif)', fontWeight: '700', color: 'var(--color-ink)', marginBottom: '4px' }}>
+                    Hi {student.name}.
+                  </p>
+                  <p style={{ fontSize: '16px', color: 'var(--color-stone)', lineHeight: '1.5' }}>
+                    Ask about your profile, matches, skill gaps, or interview prep.
+                  </p>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               {STARTER_PROMPTS.map((p, i) => (
                 <button
                   key={i}
                   onClick={() => send(p)}
-                  className="text-left p-5 rounded-[16px] ds-card hover:border-forest/40 ds-body text-ink cursor-pointer"
+                  style={{
+                    textAlign: 'left', padding: '18px 20px', borderRadius: '14px',
+                    background: 'white', border: '1.5px solid var(--color-line)',
+                    fontSize: '16px', color: 'var(--color-charcoal)', lineHeight: '1.5',
+                    cursor: 'pointer', transition: 'all .15s ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-sage)'; e.currentTarget.style.background = 'var(--color-leaf-bg)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-line)'; e.currentTarget.style.background = 'white'; }}
                 >
                   {p}
                 </button>
@@ -117,33 +138,50 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
 
         {/* Conversation */}
         {history.map((turn, i) => (
-          <div key={i} className={`flex items-start gap-3 ${turn.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-white ${
-              turn.role === 'user' ? 'bg-forest' : 'bg-ink'
-            }`}>
-              {turn.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', flexDirection: turn.role === 'user' ? 'row-reverse' : 'row' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
+              background: turn.role === 'user' ? 'var(--color-forest)' : 'var(--color-ink)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+            }}>
+              {turn.role === 'user'
+                ? <User style={{ width: '18px', height: '18px' }} />
+                : <Bot style={{ width: '18px', height: '18px' }} />}
             </div>
-            <div className={`max-w-[78%] px-5 py-4 rounded-[18px] ds-body text-left ${
-              turn.role === 'user'
-                ? 'bg-forest text-white rounded-tr-md'
-                : 'ds-card text-ink rounded-tl-md'
-            }`}>
-              <p className="whitespace-pre-wrap">{turn.content}</p>
+            <div style={{
+              maxWidth: '78%', padding: '16px 20px', borderRadius: '16px',
+              fontSize: '16px', lineHeight: '1.65',
+              ...(turn.role === 'user'
+                ? { background: 'var(--color-forest)', color: 'white', borderTopRightRadius: '4px' }
+                : { background: 'white', color: 'var(--color-charcoal)', border: '1px solid var(--color-line)', borderTopLeftRadius: '4px' }),
+            }}>
+              <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{turn.content}</p>
             </div>
           </div>
         ))}
 
-        {/* Loading indicator */}
+        {/* Loading dots */}
         {loading && (
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 shrink-0 rounded-full bg-ink flex items-center justify-center text-white">
-              <Bot className="h-5 w-5" />
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
+              background: 'var(--color-ink)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+            }}>
+              <Bot style={{ width: '18px', height: '18px' }} />
             </div>
-            <div className="ds-card rounded-tl-md px-5 py-4">
-              <div className="flex space-x-1.5 items-center h-5">
-                <div className="h-2 w-2 rounded-full bg-stone animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="h-2 w-2 rounded-full bg-stone animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="h-2 w-2 rounded-full bg-stone animate-bounce" style={{ animationDelay: '300ms' }} />
+            <div style={{
+              padding: '18px 22px', borderRadius: '16px', borderTopLeftRadius: '4px',
+              background: 'white', border: '1px solid var(--color-line)',
+            }}>
+              <div style={{ display: 'flex', gap: '5px', alignItems: 'center', height: '18px' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} className="typing-dot" style={{
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: 'var(--color-stone)',
+                    animationDelay: `${i * 0.18}s`,
+                  }} />
+                ))}
               </div>
             </div>
           </div>
@@ -151,7 +189,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
 
         {/* Error */}
         {error && (
-          <div className="ds-alert ds-alert-error">
+          <div className="ds-alert ds-alert-error" style={{ marginTop: '8px' }}>
             <AlertCircle className="ds-alert-icon" />
             <div className="ds-alert-copy">{error}</div>
           </div>
@@ -161,28 +199,46 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ student }) => {
       </div>
 
       {/* Input bar */}
-      <div className="pt-4 border-t border-line">
-        <div className="flex items-end gap-3 ds-card px-4 py-3 focus-within:border-forest">
+      <div style={{ paddingTop: '16px', borderTop: '1px solid var(--color-line)' }}>
+        <div
+          className="ds-card"
+          style={{
+            display: 'flex', alignItems: 'flex-end', gap: '12px',
+            padding: '14px 16px',
+            transition: 'border-color .15s',
+          }}
+        >
           <textarea
             ref={inputRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about matches, skill gaps, interview prep…"
             rows={1}
-            className="flex-1 resize-none ds-body placeholder:text-stone focus:outline-none bg-transparent"
-            style={{ maxHeight: '120px' }}
+            style={{
+              flex: 1, resize: 'none', border: 'none', outline: 'none',
+              fontSize: '16px', lineHeight: '1.5', color: 'var(--color-ink)',
+              background: 'transparent', fontFamily: 'var(--font-sans)',
+              maxHeight: '120px',
+            }}
           />
           <button
             onClick={() => send(input)}
             disabled={!input.trim() || loading}
-            className="h-11 w-11 shrink-0 rounded-[12px] bg-forest hover:bg-forest-deep disabled:opacity-40 text-white flex items-center justify-center cursor-pointer"
+            style={{
+              width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
+              background: !input.trim() || loading ? 'var(--color-mist)' : 'var(--color-forest)',
+              color: !input.trim() || loading ? 'var(--color-stone)' : 'white',
+              border: 'none', cursor: !input.trim() || loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all .15s ease',
+            }}
           >
-            <Send className="h-5 w-5" />
+            <Send style={{ width: '18px', height: '18px' }} />
           </button>
         </div>
-        <p className="ds-caption mt-3 text-center">
-          Enter to send · Shift+Enter for a new line · Grounded in {student.name}'s profile
+        <p style={{ fontSize: '13px', color: 'var(--color-stone)', textAlign: 'center', marginTop: '10px' }}>
+          Enter to send · Shift+Enter for new line · Grounded in {student.name}'s profile
         </p>
       </div>
     </div>
