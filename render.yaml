@@ -19,4 +19,6 @@ services:
 
 databases:
   - name: career-companion-db
+    databaseName: career_companion
+    user: career_user
     plan: free
