@@ -46,7 +46,7 @@ Takes a student's profile and a specific job, then produces two things:
 
 ### M3.3 — Interview Preparation Agent
 
-Takes a student's profile, a specific job posting, and the skill gap output from M3.1 (reused — not recomputed), then generates a structured static interview prep package:
+Takes a student's profile and a specific job posting, then immediately returns a deterministic, profile-grounded interview prep package. The API avoids waiting for an LLM request; the service retains an optional Gemini path for callers that explicitly want generated phrasing:
 
 - **Technical questions** (3–4): Specific to the role's required skills
 - **Resume-based questions** (2–3): Reference the student's actual listed experience entries by title and organisation
@@ -86,14 +86,14 @@ A single-session chat interface where the student can ask natural language quest
 |---|---|
 | `app/services/skill_gap_agent.py` | M3.1 — Compares student profile vs job posting, classifies gaps into 5 categories, generates role-specific why + recommendation for each gap, produces readiness score. Gemini call + deterministic fallback. |
 | `app/services/customization_agent.py` | M3.2 — Generates resume tailoring report (prioritised skills, relevant experience/projects, bullet rewrites, section order) and a complete cover letter. Hard constraint in prompt prevents invented content. Hallucination check function. Separate Gemini calls for resume and cover letter. Fallback for both. |
-| `app/services/interview_prep_agent.py` | M3.3 — Generates static interview prep package (5 question categories + topics to revise). Accepts skill gap data from M3.1 to enrich the topics list. Gemini call + deterministic fallback that builds sensible questions from available profile data. |
+| `app/services/interview_prep_agent.py` | M3.3 — Generates static interview prep package (5 question categories + topics to revise). The default API path uses deterministic questions from profile and job data for fast responses; callers can opt into Gemini phrasing. |
 | `app/services/career_assistant.py` | M3.4 — Single-session conversational assistant. Builds a rich system context block from student's real DB data. Sends conversation history as Gemini multi-turn content. Fallback gives keyword-matched helpful responses if Gemini fails. |
 
 ### Backend Router
 
 | File | Responsibility |
 |---|---|
-| `app/routers/agents.py` | Registers all 4 new endpoints under the `/students` prefix. Handles data shape normalisation from service dicts to Pydantic response models. Chains M3.1 into M3.3 (interview prep fetches skill gaps first). `_require_student` and `_require_job` helpers return clean 404s. |
+| `app/routers/agents.py` | Registers all 4 new endpoints under the `/students` prefix. Handles data shape normalisation from service dicts to Pydantic response models. The interview-prep endpoint uses deterministic generation to respond without waiting on Gemini. `_require_student` and `_require_job` helpers return clean 404s. |
 
 ### Modified Backend Files
 
@@ -142,9 +142,9 @@ Storing conversation history server-side requires a new database table, a sessio
 
 The one limitation: if the user refreshes the page, the conversation is lost. This is an acceptable trade-off at this stage and is documented honestly in section 4.
 
-### Why M3.3 reuses M3.1's skill gap output instead of recomputing it
+### Why M3.3 returns immediately
 
-The interview prep endpoint calls the skill gap agent internally before calling the prep agent. This avoids the frontend needing to chain two API calls, keeps the M3.3 endpoint self-contained, and means the topics-to-revise list is always consistent with the current gap analysis. The small cost is that the skill gap analysis runs twice if the user visits both M3.1 and M3.3 views for the same job. At the current scale (one student, one job at a time) this is a non-issue.
+The interview prep endpoint uses the deterministic path instead of waiting for Gemini. It builds questions and revision topics from the student's actual experience, projects, listed skills, and the role requirements. Callers that want LLM-generated phrasing can explicitly enable it in the service.
 
 ### Why the hallucination check in M3.2 is lightweight
 
@@ -213,7 +213,7 @@ In the LLM path, Gemini makes this distinction based on the full context: a stud
 
 **Q9: How does the interview prep agent use the skill gap data from M3.1?**
 
-The `generate_interview_prep()` function accepts an optional `skill_gaps` dict parameter. Inside the prompt, the critical missing skills and partially demonstrated skills are formatted into a "SKILL GAPS" section that Gemini uses to populate the `topics_to_revise` list. This means the topics to revise are not just the job's required skills in general — they're specifically the skills this student is missing for this job. In the router (`agents.py`), M3.1 is called first, its output is passed to M3.3, so the user gets a single endpoint call that delivers both the prep questions and the gap-aware revision list.
+The deterministic path uses the role's required skills for revision topics and the candidate's actual experience and projects for personalized questions. The `generate_interview_prep()` service retains optional Gemini generation for callers that explicitly enable it.
 
 **Q10: None of the M3 agent results are cached — won't running skill gap + customization + interview prep for the same job three times make three sets of LLM calls?**
 

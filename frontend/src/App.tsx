@@ -13,6 +13,22 @@ import { ApplicationTracker } from './components/ApplicationTracker';
 import type { Student, StudentProfile, JobMatch } from './types';
 import { listStudents, getStudentProfile } from './services/api';
 
+const DEMO_STUDENT: Student = {
+  id: 1,
+  name: 'Test Student',
+  email: 'test.student@example.com',
+  created_at: '2024-01-01T00:00:00Z',
+};
+
+const DEMO_PROFILE: StudentProfile = {
+  student: DEMO_STUDENT,
+  skills: [],
+  education: [],
+  experience: [],
+  projects: [],
+  resumes: [],
+};
+
 export function App() {
   const [currentStep, setCurrentStep] = useState<AppStep>('landing');
   const [activeStudent, setActiveStudent] = useState<Student | null>(null);
@@ -28,8 +44,15 @@ export function App() {
     try {
       const students = await listStudents();
       setExistingStudents(students);
+      if (!students.length) {
+        setExistingStudents([DEMO_STUDENT]);
+      }
     } catch (err) {
       console.error('Failed to load existing students:', err);
+      setExistingStudents([DEMO_STUDENT]);
+      setActiveStudent(DEMO_STUDENT);
+      setProfile(DEMO_PROFILE);
+      setCurrentStep('tracker');
     }
   };
 

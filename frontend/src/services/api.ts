@@ -89,13 +89,32 @@ export async function getCustomization(studentId: number, jobId: number): Promis
   return res.json();
 }
 
+const interviewPrepRequests = new Map<string, Promise<InterviewPrepResponse>>();
+
 export async function getInterviewPrep(studentId: number, jobId: number): Promise<InterviewPrepResponse> {
-  const res = await fetch(`${API_BASE}/students/${studentId}/interview-prep/${jobId}`);
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({ detail: 'Interview prep generation failed' }));
-    throw new Error(errData.detail || 'Interview prep generation failed');
-  }
-  return res.json();
+  const key = `${studentId}:${jobId}`;
+  const pending = interviewPrepRequests.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const res = await fetch(`${API_BASE}/students/${studentId}/interview-prep/${jobId}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ detail: 'Interview prep generation failed' }));
+      throw new Error(errData.detail || 'Interview prep generation failed');
+    }
+    return res.json() as Promise<InterviewPrepResponse>;
+  })();
+
+  interviewPrepRequests.set(key, request);
+  void request.then(
+    () => {
+      if (interviewPrepRequests.get(key) === request) interviewPrepRequests.delete(key);
+    },
+    () => {
+      if (interviewPrepRequests.get(key) === request) interviewPrepRequests.delete(key);
+    },
+  );
+  return request;
 }
 
 export async function sendAssistantMessage(

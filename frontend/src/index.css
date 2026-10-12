@@ -624,3 +624,66 @@
   border-radius: var(--radius-lg);
   padding: var(--sp-4);
 }
+
+.application-table {
+  overflow: visible;
+}
+
+.application-row {
+  position: relative;
+}
+
+.application-row.status-open {
+  z-index: 2;
+}
+
+.application-status-menu {
+  box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 850px) {
+  .application-table-header {
+    display: none !important;
+  }
+
+  .application-row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas:
+      "company actions"
+      "role role"
+      "status status"
+      "applied deadline";
+    gap: 12px 16px !important;
+    padding: 16px !important;
+  }
+
+  .application-company { grid-area: company; min-width: 0; }
+  .application-company > div:first-child { overflow-wrap: anywhere; }
+  .application-role {
+    grid-area: role;
+    padding-right: 0 !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+  .application-status { grid-area: status; }
+  .application-applied,
+  .application-deadline {
+    display: flex !important;
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 4px !important;
+  }
+  .application-applied { grid-area: applied; }
+  .application-deadline { grid-area: deadline; }
+  .application-applied::before,
+  .application-deadline::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--color-stone);
+  }
+  .application-actions { grid-area: actions; }
+}

@@ -33,6 +33,7 @@ def generate_interview_prep(
     job_id: int,
     db: Session,
     skill_gaps: Optional[Dict[str, Any]] = None,
+    use_llm: bool = True,
 ) -> Dict[str, Any]:
     """
     Returns a structured interview prep package:
@@ -55,7 +56,7 @@ def generate_interview_prep(
     job_text = _build_job_text(job)
     gaps_text = _format_gaps(skill_gaps)
 
-    result = _call_gemini_prep(profile_text, job_text, gaps_text, student, job)
+    result = _call_gemini_prep(profile_text, job_text, gaps_text, student, job) if use_llm else None
     if result is None:
         result = _fallback_prep(student, job)
 
@@ -107,7 +108,7 @@ def _build_job_text(job: models.JobPosting) -> str:
 
 def _format_gaps(gaps: Optional[Dict[str, Any]]) -> str:
     if not gaps:
-        return "No skill gap data provided."
+        return "Identify likely skill gaps by comparing the candidate profile with the job requirements above."
     critical = [g.get("skill", g.get("area", "")) for g in gaps.get("critical_missing", [])]
     partial = [g.get("skill", "") for g in gaps.get("partially_demonstrated", [])]
     lines = []
@@ -160,7 +161,7 @@ Requirements:
 - project_questions: 2-3 questions about the candidate's ACTUAL listed projects
 - role_questions: 2-3 questions based on the job's responsibilities
 - hr_questions: 2-3 general/behavioural questions
-- topics_to_revise: 4-6 specific technical topics derived from skill gaps and job requirements
+- topics_to_revise: 4-6 specific technical topics derived by comparing the candidate profile with job requirements
 """
 
 

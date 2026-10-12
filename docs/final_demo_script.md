@@ -165,7 +165,7 @@ You land on the Resume Upload page. Alex Chen's profile is new with no data yet.
 **Click:** "Interview Prep" button on the #1 ranked job card
 
 **While it loads:**
-> "The interview prep agent actually calls the skill gap agent first, then uses the gap output to make the questions gap-aware. If the candidate is missing Kubernetes but the job requires it, you'll see a question about container orchestration even if the student hasn't listed it yet."
+> "Interview prep loads instantly with questions grounded in the candidate's real experience, projects, skills, and this role's requirements."
 
 **After results load:**
 - Point to the question count summary: "12 preparation questions"

@@ -90,21 +90,15 @@ def customize_for_job(student_id: int, job_id: int, db: Session = Depends(get_db
 
 @router.get("/{student_id}/interview-prep/{job_id}", response_model=schemas.InterviewPrepResponse)
 def get_interview_prep(student_id: int, job_id: int, db: Session = Depends(get_db)):
-    """
-    Generates a static interview prep package.
-    Optionally retrieves skill gaps first and passes them to the prep agent.
-    """
+    """Generate an interview prep package in one agent call."""
     _require_student(student_id, db)
     _require_job(job_id, db)
     try:
-        # Re-use skill gap output to enrich prep questions with gap-aware topics
-        try:
-            gaps = analyze_skill_gap(student_id=student_id, job_id=job_id, db=db)
-        except Exception:
-            gaps = None
-
         result = generate_interview_prep(
-            student_id=student_id, job_id=job_id, db=db, skill_gaps=gaps
+            student_id=student_id,
+            job_id=job_id,
+            db=db,
+            use_llm=False,
         )
 
         def _to_q(item: dict) -> schemas.InterviewQuestion:
