@@ -42,17 +42,15 @@ app.include_router(agents.router)
 app.include_router(applications.router)
 
 
-@app.on_event("startup")
-def startup_event():
-    """Pre-warm sentence-transformers model and auto-seed jobs on fresh deployments."""
+def _async_startup_tasks():
+    """Background thread: pre-warms embedding model and seeds database without delaying port binding."""
     try:
         from app.services.embedding_service import preload_local_model
         elapsed = preload_local_model()
-        print(f"INFO:     [Startup] Sentence-transformers model (all-MiniLM-L6-v2) pre-warmed in {elapsed:.3f}s")
+        print(f"INFO:     [Background] Sentence-transformers model pre-warmed in {elapsed:.3f}s")
     except Exception as e:
-        print(f"WARNING:  [Startup] Could not pre-warm model ({e})")
+        print(f"WARNING:  [Background] Could not pre-warm model ({e})")
 
-    # Auto-seed jobs on fresh cloud databases if empty
     auto_seed = os.getenv("AUTO_SEED_JOBS", "true").lower() in ("true", "1", "yes")
     if auto_seed:
         try:
@@ -62,14 +60,22 @@ def startup_event():
             try:
                 count = db.query(JobPosting).count()
                 if count == 0:
-                    print("INFO:     [Startup] Database is empty. Auto-seeding initial job postings...")
+                    print("INFO:     [Background] Database is empty. Seeding initial job postings...")
                     from scripts.seed_jobs import seed_job_postings
                     seeded = seed_job_postings(db=db, force_reseed=False)
-                    print(f"INFO:     [Startup] Auto-seeded {seeded} jobs successfully.")
+                    print(f"INFO:     [Background] Auto-seeded {seeded} jobs successfully.")
             finally:
                 db.close()
         except Exception as e:
-            print(f"WARNING:  [Startup] Auto-seed check failed ({e})")
+            print(f"WARNING:  [Background] Auto-seed check failed ({e})")
+
+
+@app.on_event("startup")
+def startup_event():
+    """Return immediately so Uvicorn binds to the port in <1s for Render health checks."""
+    import threading
+    t = threading.Thread(target=_async_startup_tasks, daemon=True)
+    t.start()
 
 
 @app.get("/")
