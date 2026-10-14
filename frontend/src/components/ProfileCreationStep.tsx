@@ -7,6 +7,7 @@ interface ProfileCreationStepProps {
   onProfileCreated: (student: Student) => void;
   existingStudents: Student[];
   onSelectExisting: (student: Student) => void;
+  backendStatus?: 'checking' | 'waking' | 'ready' | 'error';
 }
 
 const PRESET_DEMO_USERS = [
@@ -19,12 +20,14 @@ const PRESET_DEMO_USERS = [
 ];
 
 export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
-  onProfileCreated, existingStudents, onSelectExisting,
+  onProfileCreated, existingStudents, onSelectExisting, backendStatus = 'ready',
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isBackendLoading = backendStatus === 'checking' || backendStatus === 'waking';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +134,7 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
 
             <button
               type="submit"
-              disabled={loading || !name.trim() || !email.trim()}
+              disabled={loading || isBackendLoading || !name.trim() || !email.trim()}
               className="ds-btn-primary"
               style={{ marginTop: '8px', width: '100%', justifyContent: 'center' }}
             >
@@ -195,7 +198,18 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
           </div>
 
           {/* Existing candidates */}
-          {existingStudents.length > 0 && (
+          {isBackendLoading ? (
+            <div className="ds-card" style={{ padding: '28px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '20px', height: '20px', borderRadius: '50%', flexShrink: 0,
+                border: '2px solid var(--color-line)', borderTopColor: 'var(--color-forest)',
+                animation: 'spin 0.8s linear infinite',
+              }} />
+              <span style={{ fontSize: '15px', color: 'var(--color-stone)' }}>
+                {backendStatus === 'waking' ? 'Backend is waking up… your profiles will appear shortly.' : 'Connecting to backend…'}
+              </span>
+            </div>
+          ) : existingStudents.length > 0 ? (
             <div className="ds-card" style={{ padding: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <UserCheck style={{ width: '18px', height: '18px', color: 'var(--color-forest)' }} />
@@ -222,6 +236,18 @@ export const ProfileCreationStep: React.FC<ProfileCreationStepProps> = ({
                   </button>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div className="ds-card" style={{ padding: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <UserCheck style={{ width: '18px', height: '18px', color: 'var(--color-sage)' }} />
+                <span className="ds-h4" style={{ color: 'var(--color-stone)' }}>No existing profiles</span>
+              </div>
+              <p className="ds-body" style={{ color: 'var(--color-stone)' }}>
+                {backendStatus === 'error'
+                  ? 'Could not reach backend. Check your VITE_API_BASE_URL in Vercel.'
+                  : 'Create a new profile above to get started.'}
+              </p>
             </div>
           )}
         </div>

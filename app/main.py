@@ -81,3 +81,10 @@ def startup_event():
 @app.get("/")
 def root():
     return {"status": "ok", "service": "AI Career Companion Agent API", "version": "0.4.0"}
+
+
+@app.get("/health")
+@app.get("/api/health")
+def health_check():
+    """Health check endpoint — used by frontend to detect if backend is awake."""
+    return {"status": "ok"}

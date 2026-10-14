@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import type { AppStep } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
@@ -13,21 +13,17 @@ import { ApplicationTracker } from './components/ApplicationTracker';
 import type { Student, StudentProfile, JobMatch } from './types';
 import { listStudents, getStudentProfile } from './services/api';
 
-const DEMO_STUDENT: Student = {
-  id: 1,
-  name: 'Test Student',
-  email: 'test.student@example.com',
-  created_at: '2024-01-01T00:00:00Z',
-};
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
-const DEMO_PROFILE: StudentProfile = {
-  student: DEMO_STUDENT,
-  skills: [],
-  education: [],
-  experience: [],
-  projects: [],
-  resumes: [],
-};
+/** Ping the backend health endpoint — returns true if alive */
+async function pingBackend(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(30_000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 export function App() {
   const [currentStep, setCurrentStep] = useState<AppStep>('landing');
@@ -36,23 +32,48 @@ export function App() {
   const [existingStudents, setExistingStudents] = useState<Student[]>([]);
   const [selectedJob, setSelectedJob] = useState<JobMatch | null>(null);
 
+  // Backend wake-up state (Render free tier goes to sleep after 15 min)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'waking' | 'ready' | 'error'>('checking');
+  const [wakingSeconds, setWakingSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
-    loadExistingStudents();
+    initBackend();
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
+
+  const initBackend = async () => {
+    setBackendStatus('checking');
+
+    // Give 2 seconds before showing "waking up" banner
+    const slowTimer = setTimeout(() => {
+      setBackendStatus('waking');
+      setWakingSeconds(0);
+      timerRef.current = setInterval(() => setWakingSeconds(s => s + 1), 1000);
+    }, 2000);
+
+    const alive = await pingBackend();
+    clearTimeout(slowTimer);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+
+    if (!alive) {
+      setBackendStatus('error');
+      return;
+    }
+
+    setBackendStatus('ready');
+    await loadExistingStudents();
+  };
 
   const loadExistingStudents = async () => {
     try {
       const students = await listStudents();
+      // Only show real students from the database — no fake demo fallback
       setExistingStudents(students);
-      if (!students.length) {
-        setExistingStudents([DEMO_STUDENT]);
-      }
     } catch (err) {
       console.error('Failed to load existing students:', err);
-      setExistingStudents([DEMO_STUDENT]);
-      setActiveStudent(DEMO_STUDENT);
-      setProfile(DEMO_PROFILE);
-      setCurrentStep('tracker');
+      // Show empty list; user will see an error state in ProfileCreationStep
+      setExistingStudents([]);
     }
   };
 
@@ -107,6 +128,61 @@ export function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-paper)', color: 'var(--color-ink)', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)' }}>
+
+      {/* ── Backend wake-up banner (Render free tier) ─────────────── */}
+      {backendStatus === 'waking' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(90deg, #1A4220, #2a5c30)',
+          color: 'white', padding: '12px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
+          boxShadow: '0 2px 16px rgba(0,0,0,.25)',
+        }}>
+          <div style={{
+            width: '16px', height: '16px', borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,.3)', borderTopColor: 'white',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+          <span style={{ fontSize: '14px', fontWeight: '600' }}>
+            ⚡ Backend is waking up on Render's free tier — this takes ~30s…
+          </span>
+          <span style={{
+            background: 'rgba(255,255,255,.15)', borderRadius: '999px',
+            padding: '2px 10px', fontSize: '13px', fontWeight: '700', minWidth: '48px', textAlign: 'center',
+          }}>
+            {wakingSeconds}s
+          </span>
+        </div>
+      )}
+
+      {backendStatus === 'error' && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: 'linear-gradient(90deg, #7c1d1d, #a52a2a)',
+          color: 'white', padding: '12px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px',
+          boxShadow: '0 2px 16px rgba(0,0,0,.25)',
+        }}>
+          <span style={{ fontSize: '14px', fontWeight: '600' }}>
+            ❌ Cannot reach backend. Check that VITE_API_BASE_URL is set correctly in Vercel.
+          </span>
+          <button
+            onClick={initBackend}
+            style={{
+              background: 'rgba(255,255,255,.20)', border: '1px solid rgba(255,255,255,.35)',
+              color: 'white', borderRadius: '8px', padding: '4px 14px',
+              fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+
       <Navbar
         currentStep={currentStep}
         activeStudent={activeStudent}
@@ -126,6 +202,7 @@ export function App() {
                 onProfileCreated={handleProfileCreated}
                 existingStudents={existingStudents}
                 onSelectExisting={handleSelectStudent}
+                backendStatus={backendStatus}
               />
             )}
 
