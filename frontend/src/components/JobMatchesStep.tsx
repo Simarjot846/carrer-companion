@@ -12,12 +12,14 @@ import { ScoreRing } from './ui';
 interface JobMatchesStepProps {
   student: Student;
   onOpenAgent: (job: JobMatch, agent: 'skill-gap' | 'customize' | 'interview-prep') => void;
+  onGoToUpload?: () => void;
 }
 
-export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student, onOpenAgent }) => {
+export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student, onOpenAgent, onGoToUpload }) => {
   const [matchesData, setMatchesData] = useState<StudentMatchesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [noResume, setNoResume] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -26,11 +28,16 @@ export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student, onOpenA
   const fetchMatches = async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
+    setNoResume(false);
     try {
       const res = await getStudentMatches(student.id, 10, forceRefresh);
       setMatchesData(res);
     } catch (err: any) {
-      setError(err.message || 'Failed to calculate job matches.');
+      if (err.message?.includes('no_resume')) {
+        setNoResume(true);
+      } else {
+        setError(err.message || 'Failed to calculate job matches.');
+      }
     } finally {
       setLoading(false);
     }
@@ -232,6 +239,50 @@ export const JobMatchesStep: React.FC<JobMatchesStepProps> = ({ student, onOpenA
       )}
 
       <JobDetailModal job={selectedJob} onClose={() => setSelectedJob(null)} />
+
+      {/* No resume gate */}
+      {!loading && noResume && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: '32px', padding: '80px 32px', textAlign: 'center',
+        }}>
+          <div style={{
+            width: '80px', height: '80px', borderRadius: '24px',
+            background: 'linear-gradient(135deg, var(--color-leaf-bg), rgba(26,66,32,.12))',
+            border: '1.5px solid rgba(26,66,32,.20)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <FileText style={{ width: '36px', height: '36px', color: 'var(--color-forest)' }} />
+          </div>
+          <div style={{ maxWidth: '440px' }}>
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', fontWeight: '700', color: 'var(--color-ink)', marginBottom: '14px' }}>
+              Upload your resume first
+            </h2>
+            <p style={{ fontSize: '17px', color: 'var(--color-stone)', lineHeight: '1.65' }}>
+              Job matches are personalised to your actual skills, experience, and projects.
+              We need your resume before we can run the AI matching pipeline.
+            </p>
+          </div>
+          {onGoToUpload && (
+            <button
+              onClick={onGoToUpload}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '10px',
+                padding: '16px 32px', borderRadius: '14px',
+                background: 'var(--color-forest)', color: 'white',
+                fontSize: '17px', fontWeight: '700', border: 'none', cursor: 'pointer',
+                boxShadow: 'var(--shadow-forest)',
+                transition: 'all .15s ease',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
+              onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              <FileText style={{ width: '18px', height: '18px' }} />
+              Go to Resume Upload
+            </button>
+          )}
+        </div>
+      )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }

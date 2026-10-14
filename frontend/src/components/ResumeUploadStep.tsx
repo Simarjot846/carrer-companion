@@ -6,6 +6,8 @@ import {
 import type { Student, StudentProfile } from '../types';
 import { uploadResume, getStudentProfile } from '../services/api';
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+
 interface ResumeUploadStepProps {
   student: Student;
   profile: StudentProfile | null;
@@ -57,24 +59,57 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
     }
   };
 
+  /** Poll the status endpoint until parsing finishes or fails. */
+  const pollStatus = async (studentId: number, resumeId: number) => {
+    const MAX_POLLS = 60; // 60 × 1.5s = 90s max
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      try {
+        const res = await fetch(`${API_BASE}/students/${studentId}/resume/${resumeId}/status`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.parsing_status === 'success') {
+          setUploadProgress(100);
+          const updatedProfile = await getStudentProfile(studentId);
+          onProfileUpdated(updatedProfile);
+          setParsingStatus('success');
+          setUploading(false);
+          return;
+        }
+        if (data.parsing_status === 'failed') {
+          setParsingStatus('failed');
+          setErrorMsg('Resume parsing pipeline failed. Please try another PDF.');
+          setUploading(false);
+          return;
+        }
+        // Still pending — advance progress bar smoothly (caps at 90%)
+        setUploadProgress(p => Math.min(p + 4, 90));
+      } catch {
+        // Network hiccup — just retry
+      }
+    }
+    // Timeout
+    setParsingStatus('failed');
+    setErrorMsg('Parsing timed out. The server may be busy — please try again.');
+    setUploading(false);
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) return;
     setUploading(true);
-    setUploadProgress(20);
+    setUploadProgress(15);
     setParsingStatus('pending');
     setErrorMsg(null);
     try {
-      setUploadProgress(55);
+      // Upload returns instantly now — backend queues the heavy pipeline
+      setUploadProgress(35);
       const res = await uploadResume(student.id, selectedFile);
-      setUploadProgress(85);
-      const updatedProfile = await getStudentProfile(student.id);
-      setUploadProgress(100);
-      onProfileUpdated(updatedProfile);
-      setParsingStatus(res.parsing_status as any);
+      setUploadProgress(50);
+      // Poll for parsing completion in the background
+      pollStatus(student.id, res.resume_id);
     } catch (err: any) {
       setParsingStatus('failed');
-      setErrorMsg(err.message || 'Resume parsing pipeline encountered an error.');
-    } finally {
+      setErrorMsg(err.message || 'Resume upload failed. Please try again.');
       setUploading(false);
     }
   };

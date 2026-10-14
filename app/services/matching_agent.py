@@ -201,14 +201,17 @@ JSON format (respond with one object per job, in an array like this):
   }}
 ]
 """
-    # 1. Try Gemini with fastest suitable model variant (FIX 3)
+    # 1. Try Gemini with valid fast models
+    # Priority: gemini-1.5-flash (fast, free tier) -> gemini-1.5-flash-8b (lightest)
     if HAS_GENAI and GOOGLE_API_KEY:
-        # Priority order: gemini-3.5-flash-lite (fastest, active quota) -> gemini-flash-lite-latest -> gemini-3.6-flash
-        candidate_models = ["gemini-3.5-flash-lite", "gemini-flash-lite-latest", "gemini-3.6-flash"]
+        candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-8b"]
         for model_name in candidate_models:
             try:
                 model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt)
+                response = model.generate_content(
+                    prompt,
+                    generation_config={"temperature": 0.1, "max_output_tokens": 1024},
+                )
                 raw_output = response.text.strip()
                 parsed = _parse_json_string(raw_output)
                 validated = _validate_llm_scores(parsed, valid_job_ids)

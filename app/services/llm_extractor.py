@@ -41,14 +41,20 @@ def extract_structured_profile(resume_text: str) -> dict:
     prompt = EXTRACTION_PROMPT_TEMPLATE.replace("__RESUME_TEXT__", resume_text)
 
     # 1. Try Gemini if configured
+    # Model priority: gemini-1.5-flash (fast & free tier) -> gemini-1.5-flash-8b (lightest)
     if HAS_GENAI and GOOGLE_API_KEY:
-        try:
-            model = genai.GenerativeModel("gemini-3.6-flash")
-            response = model.generate_content(prompt)
-            raw_output = response.text.strip()
-            return _parse_raw_llm_json(raw_output)
-        except Exception as e:
-            print(f"Warning: Gemini resume parsing API call failed ({e}). Using rule-based fallback extractor.")
+        for model_name in ["gemini-1.5-flash", "gemini-1.5-flash-8b"]:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(
+                    prompt,
+                    generation_config={"temperature": 0.1, "max_output_tokens": 2048},
+                )
+                raw_output = response.text.strip()
+                return _parse_raw_llm_json(raw_output)
+            except Exception as e:
+                print(f"Warning: Gemini ({model_name}) resume parsing failed ({e}). Trying next model.")
+                continue
 
     # 2. Fallback to rule-based extractor
     return _fallback_extract_profile(resume_text)

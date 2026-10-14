@@ -1,8 +1,8 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app import models
 from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_MB, ALLOWED_RESUME_EXTENSIONS
 from app.services.resume_parser import extract_text_from_pdf
@@ -11,43 +11,20 @@ from app.services.llm_extractor import extract_structured_profile
 router = APIRouter(prefix="/students", tags=["resumes"])
 
 
-@router.post("/{student_id}/resume")
-def upload_resume(student_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    student = db.query(models.Student).filter(models.Student.id == student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found.")
-
-    # --- Input validation (Section 13: file upload safety) ---
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_RESUME_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF resumes are accepted.")
-
-    file_bytes = file.file.read()
-    size_mb = len(file_bytes) / (1024 * 1024)
-    if size_mb > MAX_UPLOAD_SIZE_MB:
-        raise HTTPException(status_code=400, detail=f"File exceeds {MAX_UPLOAD_SIZE_MB}MB limit.")
-
-    # Use a generated filename on disk to avoid path traversal / collisions,
-    # while keeping the original filename in the DB for display purposes.
-    stored_filename = f"{uuid.uuid4().hex}{ext}"
-    stored_path = os.path.join(UPLOAD_DIR, stored_filename)
-    with open(stored_path, "wb") as f:
-        f.write(file_bytes)
-
-    resume = models.Resume(
-        student_id=student_id,
-        file_path=stored_path,
-        original_filename=file.filename,
-        parsing_status="pending",
-    )
-    db.add(resume)
-    db.commit()
-    db.refresh(resume)
-
-    # --- Pipeline: text extraction -> LLM structuring -> DB save ---
+def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> None:
+    """
+    Background task: parse PDF -> LLM extract -> save skills/education/experience/projects.
+    Uses its own DB session so it doesn't block the HTTP response.
+    """
+    db = SessionLocal()
     try:
+        resume = db.query(models.Resume).filter(models.Resume.id == resume_id).first()
+        if not resume:
+            return
+
         raw_text = extract_text_from_pdf(stored_path)
         resume.raw_text = raw_text
+        db.flush()
 
         structured = extract_structured_profile(raw_text)
 
@@ -72,14 +49,72 @@ def upload_resume(student_id: int, file: UploadFile = File(...), db: Session = D
         db.commit()
 
     except Exception as e:
-        # Reliability handling (Section 12): don't crash the request or save
-        # partial garbage silently. Mark the resume as failed and surface why.
-        resume.parsing_status = "failed"
-        db.commit()
-        raise HTTPException(status_code=422, detail=f"Resume parsing failed: {str(e)}")
+        db.rollback()
+        try:
+            resume = db.query(models.Resume).filter(models.Resume.id == resume_id).first()
+            if resume:
+                resume.parsing_status = "failed"
+                db.commit()
+        except Exception:
+            pass
+        print(f"[resume_pipeline] Error for resume {resume_id}: {e}")
+    finally:
+        db.close()
+
+
+@router.post("/{student_id}/resume")
+def upload_resume(
+    student_id: int,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found.")
+
+    # --- Input validation ---
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_RESUME_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF resumes are accepted.")
+
+    file_bytes = file.file.read()
+    size_mb = len(file_bytes) / (1024 * 1024)
+    if size_mb > MAX_UPLOAD_SIZE_MB:
+        raise HTTPException(status_code=400, detail=f"File exceeds {MAX_UPLOAD_SIZE_MB}MB limit.")
+
+    stored_filename = f"{uuid.uuid4().hex}{ext}"
+    stored_path = os.path.join(UPLOAD_DIR, stored_filename)
+    with open(stored_path, "wb") as f:
+        f.write(file_bytes)
+
+    resume = models.Resume(
+        student_id=student_id,
+        file_path=stored_path,
+        original_filename=file.filename,
+        parsing_status="pending",
+    )
+    db.add(resume)
+    db.commit()
+    db.refresh(resume)
+
+    # ✅ Kick off heavy pipeline in the background — HTTP responds immediately
+    background_tasks.add_task(_run_resume_pipeline, resume.id, student_id, stored_path)
 
     return {
         "resume_id": resume.id,
-        "parsing_status": resume.parsing_status,
-        "message": "Resume uploaded and profile extracted successfully.",
+        "parsing_status": "pending",
+        "message": "Resume uploaded successfully. Parsing is running in the background.",
     }
+
+
+@router.get("/{student_id}/resume/{resume_id}/status")
+def get_resume_status(student_id: int, resume_id: int, db: Session = Depends(get_db)):
+    """Poll this endpoint to check if background parsing has completed."""
+    resume = db.query(models.Resume).filter(
+        models.Resume.id == resume_id,
+        models.Resume.student_id == student_id,
+    ).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found.")
+    return {"resume_id": resume.id, "parsing_status": resume.parsing_status}

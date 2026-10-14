@@ -219,6 +219,7 @@ export function App() {
               <JobMatchesStep
                 student={activeStudent}
                 onOpenAgent={handleOpenAgent}
+                onGoToUpload={() => setCurrentStep('upload')}
               />
             )}
 

@@ -53,6 +53,23 @@ def get_student_matches(
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
 
+    # Guard: require at least one successfully parsed resume before running the
+    # embedding + LLM matching pipeline. Without a resume the profile is empty
+    # and matches would be random / meaningless.
+    parsed_resume = (
+        db.query(models.Resume)
+        .filter(
+            models.Resume.student_id == student_id,
+            models.Resume.parsing_status == "success",
+        )
+        .first()
+    )
+    if not parsed_resume:
+        raise HTTPException(
+            status_code=400,
+            detail="no_resume",
+        )
+
     matches_data = get_job_matches_for_student(
         student_id=student_id, db=db, top_k=top_k, force_refresh=force_refresh
     )
