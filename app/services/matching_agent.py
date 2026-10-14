@@ -1,4 +1,5 @@
 import json
+import re
 import os
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
@@ -40,21 +41,49 @@ def clear_matches_cache(student_id: int | None = None) -> None:
 
 
 def format_candidate_profile_text(student: models.Student) -> str:
-    """Formats student profile into a single text representation for embedding generation."""
+    """Formats student profile into a rich text block for embedding."""
     skills_str = ", ".join([s.name for s in student.skills]) if student.skills else "None listed"
 
-    edu_list = [f"{e.degree or 'Degree'} in {e.field_of_study or 'Field'} at {e.institution}" for e in student.education]
+    edu_list = [
+        f"{e.degree or 'Degree'} in {e.field_of_study or 'Field'} at {e.institution}"
+        + (f" ({e.start_date}–{e.end_date})" if e.start_date or e.end_date else "")
+        for e in student.education
+    ]
     edu_str = "; ".join(edu_list) if edu_list else "None listed"
 
-    exp_list = [f"{ex.title} at {ex.organization or 'Company'}: {ex.description or ''}" for ex in student.experience]
+    exp_list = [
+        f"{ex.title} at {ex.organization or 'Company'}: {(ex.description or '')[:200]}"
+        for ex in student.experience
+    ]
     exp_str = "; ".join(exp_list) if exp_list else "None listed"
 
-    proj_list = [f"{p.title} ({p.technologies or ''}): {p.description or ''}" for p in student.projects]
+    proj_list = [
+        f"{p.title} [{p.technologies or 'N/A'}]: {(p.description or '')[:150]}"
+        for p in student.projects
+    ]
     proj_str = "; ".join(proj_list) if proj_list else "None listed"
 
     qual_str = getattr(student, "qualifications", None) or "None listed"
 
-    return f"Candidate Name: {student.name}\nSkills: {skills_str}\nEducation: {edu_str}\nExperience: {exp_str}\nProjects: {proj_str}\nQualifications: {qual_str}"
+    # Include a snippet of raw resume text for richer semantic context
+    raw_text_snippet = ""
+    latest_resume = max(
+        [r for r in student.resumes if r.raw_text],
+        key=lambda r: r.uploaded_at,
+        default=None,
+    ) if student.resumes else None
+    if latest_resume and latest_resume.raw_text:
+        raw_text_snippet = f"\nResume Excerpt:\n{latest_resume.raw_text[:1500]}"
+
+    return (
+        f"Candidate: {student.name}\n"
+        f"Skills: {skills_str}\n"
+        f"Education: {edu_str}\n"
+        f"Experience: {exp_str}\n"
+        f"Projects: {proj_str}\n"
+        f"Qualifications: {qual_str}"
+        f"{raw_text_snippet}"
+    )
 
 
 def get_job_matches_for_student(
@@ -88,8 +117,8 @@ def get_job_matches_for_student(
     if not similar_jobs:
         return []
 
-    # FIX 2: Only send top 5 candidate jobs to Gemini for scoring (smaller prompt, faster response)
-    llm_top_k = min(5, len(similar_jobs))
+    # Score ALL retrieved jobs with LLM (not just top 5) for accurate ranking
+    llm_top_k = len(similar_jobs)
     jobs_for_llm = [job for job, vec_sim in similar_jobs[:llm_top_k]]
 
     # Step 2: LLM Reranking and Scoring
@@ -225,12 +254,19 @@ JSON format (respond with one object per job, in an array like this):
 
 
 def _parse_json_string(raw_output: str) -> Any:
-    if raw_output.startswith("```"):
-        raw_output = raw_output.strip("`")
-        if raw_output.startswith("json"):
-            raw_output = raw_output[4:]
-        raw_output = raw_output.strip()
-    return json.loads(raw_output)
+    """Robustly parse LLM JSON output, handling markdown code fences."""
+    # Strip markdown fences
+    raw_output = re.sub(r"^```(?:json)?\s*", "", raw_output, flags=re.MULTILINE)
+    raw_output = re.sub(r"\s*```$", "", raw_output, flags=re.MULTILINE)
+    raw_output = raw_output.strip()
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        # Try to find a JSON array in the output
+        match = re.search(r"\[[\s\S]+\]", raw_output)
+        if match:
+            return json.loads(match.group())
+        raise
 
 
 def _fallback_scoring(student: models.Student, jobs: List[models.JobPosting]) -> List[Dict[str, Any]]:

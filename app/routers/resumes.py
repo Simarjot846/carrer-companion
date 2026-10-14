@@ -15,7 +15,9 @@ def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> N
     """
     Background task: parse PDF -> LLM extract -> save skills/education/experience/projects.
     Uses its own DB session so it doesn't block the HTTP response.
+    Clears old profile data first to avoid duplicates on re-upload.
     """
+    from app.services.matching_agent import clear_matches_cache
     db = SessionLocal()
     try:
         resume = db.query(models.Resume).filter(models.Resume.id == resume_id).first()
@@ -28,25 +30,51 @@ def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> N
 
         structured = extract_structured_profile(raw_text)
 
+        # ── Clear old extracted data for this student before inserting fresh ──
+        # This prevents duplicate skills/education/etc. when re-uploading a resume.
+        db.query(models.Skill).filter(
+            models.Skill.student_id == student_id,
+            models.Skill.source == "resume",
+        ).delete(synchronize_session=False)
+        db.query(models.Education).filter(models.Education.student_id == student_id).delete(synchronize_session=False)
+        db.query(models.Experience).filter(models.Experience.student_id == student_id).delete(synchronize_session=False)
+        db.query(models.Project).filter(models.Project.student_id == student_id).delete(synchronize_session=False)
+        db.flush()
+
+        # ── Insert fresh extracted data ────────────────────────────────────
+        seen_skills: set = set()
         for skill in structured.get("skills", []):
+            name = (skill.get("name") or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key in seen_skills:
+                continue           # skip duplicate skill names
+            seen_skills.add(key)
             db.add(models.Skill(
                 student_id=student_id,
-                name=skill.get("name"),
-                category=skill.get("category"),
+                name=name,
+                category=skill.get("category", "technical"),
                 source="resume",
             ))
 
         for edu in structured.get("education", []):
-            db.add(models.Education(student_id=student_id, **edu))
+            if edu and edu.get("institution"):
+                db.add(models.Education(student_id=student_id, **edu))
 
         for exp in structured.get("experience", []):
-            db.add(models.Experience(student_id=student_id, **exp))
+            if exp and exp.get("title"):
+                db.add(models.Experience(student_id=student_id, **exp))
 
         for proj in structured.get("projects", []):
-            db.add(models.Project(student_id=student_id, **proj))
+            if proj and proj.get("title"):
+                db.add(models.Project(student_id=student_id, **proj))
 
         resume.parsing_status = "success"
         db.commit()
+
+        # Clear cached matches so next fetch uses the updated profile
+        clear_matches_cache(student_id)
 
     except Exception as e:
         db.rollback()
