@@ -1,8 +1,28 @@
+"""
+Resume upload and parsing router.
+
+Design decision — SYNCHRONOUS pipeline
+========================================
+The PDF extraction + LLM structuring runs synchronously inside the HTTP
+request handler. This is intentional for the Render free-tier deployment:
+  - Render kills background threads after the HTTP response is sent.
+  - FastAPI BackgroundTasks run in the same process; on Render they are
+    terminated before the Gemini call completes.
+  - Running synchronously means the client gets a definitive success/failed
+    status in a single response — no polling needed.
+  - With gemini-2.0-flash the pipeline completes in ~5-15s, well within
+    Render's 30s request timeout for web services.
+
+The frontend shows a progress spinner while waiting and handles the response
+in one shot — no polling endpoint required.
+"""
 import os
 import uuid
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
+
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from app.database import get_db, SessionLocal
+
+from app.database import get_db
 from app import models
 from app.config import UPLOAD_DIR, MAX_UPLOAD_SIZE_MB, ALLOWED_RESUME_EXTENSIONS
 from app.services.resume_parser import extract_text_from_pdf
@@ -10,27 +30,62 @@ from app.services.llm_extractor import extract_structured_profile
 
 router = APIRouter(prefix="/students", tags=["resumes"])
 
-def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> None:
-    """
-    Background task: parse PDF -> LLM extract -> save skills/education/experience/projects.
-    Uses its own DB session so it doesn't block the HTTP response.
-    Clears old profile data first to avoid duplicates on re-upload.
-    """
-    from app.services.matching_agent import clear_matches_cache
-    db = SessionLocal()
-    try:
-        resume = db.query(models.Resume).filter(models.Resume.id == resume_id).first()
-        if not resume:
-            return
 
+@router.post("/{student_id}/resume")
+def upload_resume(
+    student_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload a PDF resume and run the full extraction pipeline synchronously.
+    Returns parsing_status = "success" | "failed" in the response body.
+    The client does NOT need to poll — it gets the final status immediately.
+    """
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found.")
+
+    # ── Validate ──────────────────────────────────────────────────────────
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_RESUME_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only PDF resumes are accepted.")
+
+    file_bytes = file.file.read()
+    size_mb = len(file_bytes) / (1024 * 1024)
+    if size_mb > MAX_UPLOAD_SIZE_MB:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File exceeds {MAX_UPLOAD_SIZE_MB} MB limit.",
+        )
+
+    # ── Save to disk ───────────────────────────────────────────────────────
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    stored_filename = f"{uuid.uuid4().hex}{ext}"
+    stored_path = os.path.join(UPLOAD_DIR, stored_filename)
+    with open(stored_path, "wb") as f:
+        f.write(file_bytes)
+
+    # ── Create Resume DB record ────────────────────────────────────────────
+    resume = models.Resume(
+        student_id=student_id,
+        file_path=stored_path,
+        original_filename=file.filename,
+        parsing_status="pending",
+    )
+    db.add(resume)
+    db.commit()
+    db.refresh(resume)
+
+    # ── Run pipeline synchronously ─────────────────────────────────────────
+    try:
         raw_text = extract_text_from_pdf(stored_path)
         resume.raw_text = raw_text
         db.flush()
 
         structured = extract_structured_profile(raw_text)
 
-        # ── Clear old extracted data for this student before inserting fresh ──
-        # This prevents duplicate skills/education/etc. when re-uploading a resume.
+        # Clear old extracted data to prevent duplicates on re-upload
         db.query(models.Skill).filter(
             models.Skill.student_id == student_id,
             models.Skill.source == "resume",
@@ -40,7 +95,7 @@ def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> N
         db.query(models.Project).filter(models.Project.student_id == student_id).delete(synchronize_session=False)
         db.flush()
 
-        # ── Insert fresh extracted data ────────────────────────────────────
+        # Insert fresh extracted data
         seen_skills: set = set()
         for skill in structured.get("skills", []):
             name = (skill.get("name") or "").strip()
@@ -48,7 +103,7 @@ def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> N
                 continue
             key = name.lower()
             if key in seen_skills:
-                continue           # skip duplicate skill names
+                continue
             seen_skills.add(key)
             db.add(models.Skill(
                 student_id=student_id,
@@ -72,82 +127,49 @@ def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> N
         resume.parsing_status = "success"
         db.commit()
 
-        # Clear cached matches AND agent caches so next fetch uses updated profile
-        clear_matches_cache(student_id)
-        from app.services.skill_gap_agent import clear_skill_gap_cache
-        from app.services.customization_agent import clear_customization_cache
-        from app.services.interview_prep_agent import clear_interview_prep_cache
-        clear_skill_gap_cache(student_id)
-        clear_customization_cache(student_id)
-        clear_interview_prep_cache(student_id)
+        # Invalidate all caches for this student
+        _clear_student_caches(student_id)
+
+        return {
+            "resume_id": resume.id,
+            "parsing_status": "success",
+            "message": "Resume uploaded and profile extracted successfully.",
+        }
 
     except Exception as e:
         db.rollback()
         try:
-            resume = db.query(models.Resume).filter(models.Resume.id == resume_id).first()
-            if resume:
-                resume.parsing_status = "failed"
-                db.commit()
+            resume.parsing_status = "failed"
+            db.add(resume)
+            db.commit()
         except Exception:
             pass
-        print(f"[resume_pipeline] Error for resume {resume_id}: {e}")
-    finally:
-        db.close()
+        print(f"[resume_pipeline] Error for student {student_id}: {e}")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Resume parsing failed: {str(e)}",
+        )
 
 
-@router.post("/{student_id}/resume")
-def upload_resume(
-    student_id: int,
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
-    student = db.query(models.Student).filter(models.Student.id == student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found.")
-
-    # --- Input validation ---
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_RESUME_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF resumes are accepted.")
-
-    file_bytes = file.file.read()
-    size_mb = len(file_bytes) / (1024 * 1024)
-    if size_mb > MAX_UPLOAD_SIZE_MB:
-        raise HTTPException(status_code=400, detail=f"File exceeds {MAX_UPLOAD_SIZE_MB}MB limit.")
-
-    stored_filename = f"{uuid.uuid4().hex}{ext}"
-    stored_path = os.path.join(UPLOAD_DIR, stored_filename)
-    with open(stored_path, "wb") as f:
-        f.write(file_bytes)
-
-    resume = models.Resume(
-        student_id=student_id,
-        file_path=stored_path,
-        original_filename=file.filename,
-        parsing_status="pending",
-    )
-    db.add(resume)
-    db.commit()
-    db.refresh(resume)
-
-    # ✅ Kick off heavy pipeline in the background — HTTP responds immediately
-    background_tasks.add_task(_run_resume_pipeline, resume.id, student_id, stored_path)
-
-    return {
-        "resume_id": resume.id,
-        "parsing_status": "pending",
-        "message": "Resume uploaded successfully. Parsing is running in the background.",
-    }
-
-
-@router.get("/{student_id}/resume/{resume_id}/status")
-def get_resume_status(student_id: int, resume_id: int, db: Session = Depends(get_db)):
-    """Poll this endpoint to check if background parsing has completed."""
-    resume = db.query(models.Resume).filter(
-        models.Resume.id == resume_id,
-        models.Resume.student_id == student_id,
-    ).first()
-    if not resume:
-        raise HTTPException(status_code=404, detail="Resume not found.")
-    return {"resume_id": resume.id, "parsing_status": resume.parsing_status}
+def _clear_student_caches(student_id: int) -> None:
+    """Clears all in-memory caches that depend on a student's profile."""
+    try:
+        from app.services.matching_agent import clear_matches_cache
+        clear_matches_cache(student_id)
+    except Exception:
+        pass
+    try:
+        from app.services.skill_gap_agent import clear_skill_gap_cache
+        clear_skill_gap_cache(student_id)
+    except Exception:
+        pass
+    try:
+        from app.services.customization_agent import clear_customization_cache
+        clear_customization_cache(student_id)
+    except Exception:
+        pass
+    try:
+        from app.services.interview_prep_agent import clear_interview_prep_cache
+        clear_interview_prep_cache(student_id)
+    except Exception:
+        pass
