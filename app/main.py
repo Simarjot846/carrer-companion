@@ -81,11 +81,10 @@ def startup_event():
     t.start()
 
 
-@app.get("/")
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
-    """Health check endpoint — also used by frontend to detect if backend is awake."""
+    """Health check endpoint — returns JSON for Render uptime checks."""
     return {"status": "ok", "service": "AI Career Companion Agent API", "version": "0.4.0"}
 
 
@@ -93,15 +92,17 @@ def health_check():
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
 if FRONTEND_DIST.exists():
-    # Serve static assets (JS, CSS, images…)
+    # Serve /assets/* (JS, CSS bundles)
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
-        """Catch-all: return index.html so React Router handles all frontend routes."""
-        index = FRONTEND_DIST / "index.html"
-        return FileResponse(str(index))
+        """Catch-all: serve file if it exists in dist (favicon etc), else index.html for React Router."""
+        requested = FRONTEND_DIST / full_path
+        if full_path and requested.exists() and requested.is_file():
+            return FileResponse(str(requested))
+        return FileResponse(str(FRONTEND_DIST / "index.html"))
 else:
     @app.get("/")
     def root():
-        return {"status": "ok", "note": "Frontend dist not found — run build.sh to build the frontend."}
+        return {"status": "ok", "note": "Frontend dist not found — run: cd frontend && npm run build"}
