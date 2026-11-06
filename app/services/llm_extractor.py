@@ -16,46 +16,52 @@ except Exception:
 
 
 EXTRACTION_PROMPT_TEMPLATE = """\
-You are an expert resume parser. Extract ALL structured information from the resume text below.
-Respond with ONLY valid JSON — no markdown fences, no explanation, no preamble.
+You are an expert resume parser. Your ONLY job is to extract real information from the resume text below.
 
-Use EXACTLY this JSON structure:
+CRITICAL RULES — read carefully before responding:
+1. ONLY extract information that is EXPLICITLY written in the resume text.
+2. NEVER invent, guess, or use placeholder values. If you cannot find a real value, use null.
+3. Do NOT use generic descriptions like "Tech Company", "University / College", "Developed technical solutions", "Software / Technical Intern", or any template-like text.
+4. If the resume text is too short, garbled, or unclear — still only extract what is clearly readable. Return empty arrays rather than fake data.
+5. Respond with ONLY valid JSON — no markdown fences, no explanation, no preamble.
+
+Use EXACTLY this JSON structure (the values shown are FAKE EXAMPLES — replace with REAL data from the resume):
 {
   "skills": [
-    {"name": "Python", "category": "technical"},
-    {"name": "Communication", "category": "soft"},
-    {"name": "VS Code", "category": "tool"}
+    {"name": "REAL_SKILL_FROM_RESUME", "category": "technical"},
+    {"name": "REAL_SOFT_SKILL", "category": "soft"},
+    {"name": "REAL_TOOL", "category": "tool"}
   ],
   "education": [
     {
-      "institution": "University Name",
-      "degree": "Bachelor of Technology",
-      "field_of_study": "Computer Science",
-      "start_date": "2021",
-      "end_date": "2025",
-      "grade": "8.5 CGPA"
+      "institution": "ACTUAL_UNIVERSITY_NAME_FROM_RESUME",
+      "degree": "ACTUAL_DEGREE_e.g._B.Tech",
+      "field_of_study": "ACTUAL_FIELD_e.g._Computer_Science",
+      "start_date": "ACTUAL_YEAR_e.g._2021",
+      "end_date": "ACTUAL_YEAR_OR_PRESENT",
+      "grade": "ACTUAL_CGPA_OR_PERCENTAGE_OR_NULL"
     }
   ],
   "experience": [
     {
-      "title": "Software Engineering Intern",
-      "organization": "Company Name",
-      "start_date": "May 2024",
-      "end_date": "July 2024",
-      "description": "Full description of responsibilities and achievements"
+      "title": "ACTUAL_JOB_TITLE_FROM_RESUME",
+      "organization": "ACTUAL_COMPANY_NAME_FROM_RESUME",
+      "start_date": "ACTUAL_MONTH_YEAR",
+      "end_date": "ACTUAL_MONTH_YEAR_OR_PRESENT",
+      "description": "ACTUAL_RESPONSIBILITIES_AND_ACHIEVEMENTS_FROM_RESUME"
     }
   ],
   "projects": [
     {
-      "title": "Project Name",
-      "description": "What the project does and your role",
-      "technologies": "Python, React, PostgreSQL",
-      "link": "https://github.com/..."
+      "title": "ACTUAL_PROJECT_NAME",
+      "description": "ACTUAL_PROJECT_DESCRIPTION_FROM_RESUME",
+      "technologies": "ACTUAL_TECH_STACK_USED",
+      "link": "ACTUAL_URL_OR_NULL"
     }
   ]
 }
 
-EXTRACTION RULES (follow carefully):
+EXTRACTION RULES:
 1. Skills — extract EVERY skill mentioned ANYWHERE in the resume:
    - Programming languages (Python, Java, C++, JavaScript, TypeScript, etc.)
    - Frameworks & libraries (React, FastAPI, Django, Spring Boot, TensorFlow, etc.)
@@ -64,18 +70,111 @@ EXTRACTION RULES (follow carefully):
    - Tools (VS Code, Postman, Figma, JIRA, etc.)
    - Soft skills (Communication, Leadership, Teamwork, Problem Solving, etc.)
    - Concepts (Machine Learning, REST APIs, Microservices, Data Structures, etc.)
-   - Assign category: "technical" for languages/frameworks/databases/concepts, "tool" for dev tools/cloud platforms, "soft" for interpersonal skills
-2. Education — extract ALL education entries (degree, diploma, certification, etc.)
-3. Experience — extract ALL internships, jobs, research positions, and volunteering
-4. Projects — extract ALL projects (academic, personal, open-source). Include GitHub/demo links if present.
-5. Use null for any field genuinely not present. Do NOT guess or hallucinate.
-6. For descriptions, include the full text — do not truncate.
+   - category: "technical" for languages/frameworks/databases/concepts, "tool" for dev tools/platforms, "soft" for interpersonal
+2. Education — extract ALL real education entries. institution MUST be a real school name from the resume.
+3. Experience — extract ALL real work entries. organization MUST be a real company name from the resume.
+4. Projects — extract ALL projects (academic, personal, open-source). Include real GitHub/demo links if present.
+5. Use null for any field not found. NEVER use placeholder text.
+6. For descriptions, copy the full text — do not truncate.
 
 Resume text:
 ---
 __RESUME_TEXT__
 ---
 """
+
+# Values that indicate hallucinated/generic output — reject these
+_HALLUCINATION_PATTERNS = [
+    "university / college", "university/college",
+    "tech company", "company name", "organization name",
+    "software / technical intern", "software/technical intern",
+    "technical intern", "job title", "your company",
+    "developed technical solutions and contributed",
+    "bachelor of science in computer science / technical field",
+    "computer science / technical field",
+    "bachelor of science / technical",
+    "field of study",
+]
+
+
+def _is_hallucinated(value: str) -> bool:
+    """Returns True if the value looks like a template placeholder."""
+    if not value:
+        return False
+    v = value.lower().strip()
+    return any(pat in v for pat in _HALLUCINATION_PATTERNS)
+
+
+def _clean_extracted(data: dict) -> dict:
+    """
+    Post-process LLM output to remove hallucinated/generic entries.
+    Logs any removed entries so we can track the issue.
+    """
+    # Clean education
+    clean_edu = []
+    for edu in data.get("education", []):
+        inst = edu.get("institution", "") or ""
+        if _is_hallucinated(inst):
+            print(f"[llm_extractor] Rejected hallucinated education entry: institution='{inst}'")
+            continue
+        # Also reject if degree+field looks generic
+        degree = edu.get("degree", "") or ""
+        field = edu.get("field_of_study", "") or ""
+        if _is_hallucinated(degree) or _is_hallucinated(field):
+            print(f"[llm_extractor] Rejected hallucinated education entry: degree='{degree}', field='{field}'")
+            continue
+        clean_edu.append(edu)
+
+    # Clean experience
+    clean_exp = []
+    for exp in data.get("experience", []):
+        title = exp.get("title", "") or ""
+        org = exp.get("organization", "") or ""
+        desc = exp.get("description", "") or ""
+        if _is_hallucinated(title) or _is_hallucinated(org) or _is_hallucinated(desc):
+            print(f"[llm_extractor] Rejected hallucinated experience: title='{title}', org='{org}'")
+            continue
+        clean_exp.append(exp)
+
+    # Clean projects (less strict — just reject if title is generic)
+    clean_proj = []
+    for proj in data.get("projects", []):
+        title = proj.get("title", "") or ""
+        if _is_hallucinated(title):
+            print(f"[llm_extractor] Rejected hallucinated project: title='{title}'")
+            continue
+        clean_proj.append(proj)
+
+    # De-duplicate education by institution+degree
+    seen_edu = set()
+    deduped_edu = []
+    for edu in clean_edu:
+        key = (
+            (edu.get("institution") or "").lower().strip(),
+            (edu.get("degree") or "").lower().strip(),
+        )
+        if key not in seen_edu:
+            seen_edu.add(key)
+            deduped_edu.append(edu)
+
+    # De-duplicate experience by title+organization
+    seen_exp = set()
+    deduped_exp = []
+    for exp in clean_exp:
+        key = (
+            (exp.get("title") or "").lower().strip(),
+            (exp.get("organization") or "").lower().strip(),
+        )
+        if key not in seen_exp:
+            seen_exp.add(key)
+            deduped_exp.append(exp)
+
+    return {
+        "skills": data.get("skills", []),
+        "education": deduped_edu,
+        "experience": deduped_exp,
+        "projects": clean_proj,
+    }
 
 
 def extract_structured_profile(resume_text: str) -> dict:
@@ -99,12 +198,18 @@ def extract_structured_profile(resume_text: str) -> dict:
                 )
                 raw_output = response.text.strip()
                 parsed = _parse_raw_llm_json(raw_output)
-                # Validate we got meaningful data
-                if parsed.get("skills") or parsed.get("experience") or parsed.get("projects"):
-                    return parsed
+                cleaned = _clean_extracted(parsed)
+                # Validate we got meaningful data (skills are easiest to extract)
+                if cleaned.get("skills") or cleaned.get("experience") or cleaned.get("projects"):
+                    print(f"[llm_extractor] Gemini ({model_name}) extracted: "
+                          f"{len(cleaned['skills'])} skills, {len(cleaned['education'])} edu, "
+                          f"{len(cleaned['experience'])} exp, {len(cleaned['projects'])} projects")
+                    return cleaned
             except Exception as e:
                 print(f"[llm_extractor] Gemini ({model_name}) failed: {e}. Trying next.")
                 continue
+    else:
+        print("[llm_extractor] GOOGLE_API_KEY not set — skipping Gemini, using rule-based fallback.")
 
     # 2. Rule-based fallback
     print("[llm_extractor] All Gemini attempts failed. Using rule-based fallback.")
