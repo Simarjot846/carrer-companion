@@ -189,12 +189,13 @@ _SOFT_SKILLS = [
 
 def _fallback_extract_profile(text: str) -> dict:
     """
-    Keyword-based extraction when Gemini is unavailable.
-    Scans resume text for known skills; attempts to parse sections.
+    Keyword-based fallback used only when Gemini is unavailable.
+    ONLY extracts skills via keyword matching — never invents education,
+    experience or projects. Those require LLM to be accurate.
     """
     text_lower = text.lower()
 
-    # ── Skills ─────────────────────────────────────────────────────────────
+    # ── Skills — reliable via keyword scan ─────────────────────────────────
     found_technical = [
         {"name": s, "category": "technical"}
         for s in _TECHNICAL_SKILLS
@@ -206,70 +207,44 @@ def _fallback_extract_profile(text: str) -> dict:
         if s.lower() in text_lower
     ]
     all_skills = found_technical + found_soft
-    if not all_skills:
-        all_skills = [{"name": "Software Engineering", "category": "technical"}]
 
-    # ── Education — look for degree keywords ───────────────────────────────
+    # ── Education — only if we can find a real institution name ────────────
     education = []
-    degree_patterns = [
-        (r"b\.?tech|bachelor of technology", "Bachelor of Technology"),
-        (r"b\.?e\.?|bachelor of engineering", "Bachelor of Engineering"),
-        (r"b\.?sc|bachelor of science", "Bachelor of Science"),
-        (r"m\.?tech|master of technology", "Master of Technology"),
-        (r"m\.?sc|master of science", "Master of Science"),
-        (r"mba|master of business", "MBA"),
-        (r"ph\.?d|doctorate", "PhD"),
-        (r"diploma", "Diploma"),
-    ]
-    for pattern, degree_label in degree_patterns:
-        if re.search(pattern, text_lower):
-            education.append({
-                "institution": _extract_institution(text) or "University / College",
-                "degree": degree_label,
-                "field_of_study": _extract_field(text_lower),
-                "start_date": None,
-                "end_date": None,
-                "grade": None,
-            })
-            break
-
-    if not education:
+    institution = _extract_institution(text)
+    if institution:
+        degree = None
+        for pattern, label in [
+            (r"b\.?tech|bachelor of technology", "Bachelor of Technology"),
+            (r"b\.?e\b|bachelor of engineering", "Bachelor of Engineering"),
+            (r"b\.?sc\b|bachelor of science", "Bachelor of Science"),
+            (r"m\.?tech|master of technology", "Master of Technology"),
+            (r"m\.?sc\b|master of science", "Master of Science"),
+            (r"\bmba\b|master of business", "MBA"),
+            (r"ph\.?d|doctorate", "PhD"),
+            (r"\bdiploma\b", "Diploma"),
+        ]:
+            if re.search(pattern, text_lower):
+                degree = label
+                break
+        field = _extract_field(text_lower)
         education = [{
-            "institution": _extract_institution(text) or "University / College",
-            "degree": "Bachelor's Degree",
-            "field_of_study": "Computer Science / Engineering",
+            "institution": institution,
+            "degree": degree,
+            "field_of_study": field if field != "Computer Science / Engineering" else None,
             "start_date": None,
             "end_date": None,
             "grade": None,
         }]
 
-    # ── Experience — look for internship/job keywords ──────────────────────
-    experience = []
-    if re.search(r"intern|internship|engineer|developer|analyst|researcher", text_lower):
-        experience = [{
-            "title": "Software / Technical Intern",
-            "organization": None,
-            "start_date": None,
-            "end_date": None,
-            "description": "Technical contributions extracted from resume. Upload a text-based PDF for full extraction.",
-        }]
-
-    # ── Projects ───────────────────────────────────────────────────────────
-    projects = []
-    if re.search(r"project|built|developed|created|implemented", text_lower):
-        tech_str = ", ".join([s["name"] for s in found_technical[:6]]) or "Various Technologies"
-        projects = [{
-            "title": "Technical Project",
-            "description": "Project details extracted from resume. Upload a text-based PDF for full extraction.",
-            "technologies": tech_str,
-            "link": None,
-        }]
+    # ── Experience and Projects — leave empty; never fabricate ─────────────
+    # These require accurate LLM extraction. Returning fake entries is worse
+    # than returning nothing.
 
     return {
         "skills": all_skills,
         "education": education,
-        "experience": experience,
-        "projects": projects,
+        "experience": [],
+        "projects": [],
     }
 
 

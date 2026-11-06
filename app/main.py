@@ -1,6 +1,9 @@
 import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.database import Base, engine
 from app.routers import students, resumes, jobs, agents, applications
 
@@ -35,11 +38,11 @@ else:
         allow_headers=["*"],
     )
 
-app.include_router(students.router)
-app.include_router(resumes.router)
-app.include_router(jobs.router)
-app.include_router(agents.router)
-app.include_router(applications.router)
+app.include_router(students.router, prefix="/api")
+app.include_router(resumes.router,  prefix="/api")
+app.include_router(jobs.router,     prefix="/api")
+app.include_router(agents.router,   prefix="/api")
+app.include_router(applications.router, prefix="/api")
 
 
 def _async_startup_tasks():
@@ -79,12 +82,26 @@ def startup_event():
 
 
 @app.get("/")
-def root():
-    return {"status": "ok", "service": "AI Career Companion Agent API", "version": "0.4.0"}
-
-
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
-    """Health check endpoint — used by frontend to detect if backend is awake."""
-    return {"status": "ok"}
+    """Health check endpoint — also used by frontend to detect if backend is awake."""
+    return {"status": "ok", "service": "AI Career Companion Agent API", "version": "0.4.0"}
+
+
+# ── Serve React SPA (must be registered LAST) ─────────────────────────────────
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.exists():
+    # Serve static assets (JS, CSS, images…)
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_spa(full_path: str):
+        """Catch-all: return index.html so React Router handles all frontend routes."""
+        index = FRONTEND_DIST / "index.html"
+        return FileResponse(str(index))
+else:
+    @app.get("/")
+    def root():
+        return {"status": "ok", "note": "Frontend dist not found — run build.sh to build the frontend."}

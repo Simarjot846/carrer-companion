@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models, schemas
-from app.services.matching_agent import get_job_matches_for_student
+from app.services.matching_agent import get_job_matches_for_student, clear_matches_cache
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -40,6 +40,28 @@ def get_student_profile(student_id: int, db: Session = Depends(get_db)):
         projects=student.projects,
         resumes=student.resumes,
     )
+
+
+@router.delete("/{student_id}/profile-data", status_code=200)
+def clear_student_profile_data(student_id: int, db: Session = Depends(get_db)):
+    """
+    Wipes all extracted profile data (skills, education, experience, projects,
+    resume records) for a student WITHOUT deleting the student account itself.
+    Use this to clean up stale/incorrect data before re-uploading a resume.
+    """
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found.")
+
+    db.query(models.Skill).filter(models.Skill.student_id == student_id).delete(synchronize_session=False)
+    db.query(models.Education).filter(models.Education.student_id == student_id).delete(synchronize_session=False)
+    db.query(models.Experience).filter(models.Experience.student_id == student_id).delete(synchronize_session=False)
+    db.query(models.Project).filter(models.Project.student_id == student_id).delete(synchronize_session=False)
+    db.query(models.Resume).filter(models.Resume.student_id == student_id).delete(synchronize_session=False)
+    db.commit()
+    clear_matches_cache(student_id)
+
+    return {"message": f"Profile data cleared for student {student_id}. You can now re-upload your resume."}
 
 
 @router.get("/{student_id}/matches", response_model=schemas.StudentMatchesResponse)
