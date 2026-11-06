@@ -22,26 +22,36 @@ except Exception:
     genai = None
     HAS_GENAI = False
 
+# ---------------------------------------------------------------------------
+# In-memory cache — keyed by (student_id, job_id)
+# ---------------------------------------------------------------------------
+_CUSTOMIZATION_CACHE: Dict[tuple, Dict[str, Any]] = {}
+
+
+def clear_customization_cache(student_id: int | None = None) -> None:
+    global _CUSTOMIZATION_CACHE
+    if student_id is None:
+        _CUSTOMIZATION_CACHE.clear()
+    else:
+        keys_to_del = [k for k in _CUSTOMIZATION_CACHE if k[0] == student_id]
+        for k in keys_to_del:
+            del _CUSTOMIZATION_CACHE[k]
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def generate_customization(student_id: int, job_id: int, db: Session) -> Dict[str, Any]:
+def generate_customization(student_id: int, job_id: int, db: Session, force_refresh: bool = False) -> Dict[str, Any]:
     """
-    Returns:
-      resume_customization:
-        prioritized_skills: List[str]
-        relevant_experiences: List[{title, org, why_relevant}]
-        relevant_projects: List[{title, why_relevant}]
-        rewritten_bullets: List[{original, suggested, change_note}]
-        section_order_recommendation: List[str]
-        tailoring_notes: str
-      cover_letter:
-        subject_line: str
-        body: str  (3-4 paragraphs)
-        hallucination_check: bool  (True = passed = no invented content detected)
+    Returns tailored resume suggestions and cover letter grounded in the student's profile.
+    Results are cached in-memory by (student_id, job_id). Pass force_refresh=True to regenerate.
     """
+    cache_key = (student_id, job_id)
+    if not force_refresh and cache_key in _CUSTOMIZATION_CACHE:
+        print(f"[customization] Cache hit for student={student_id}, job={job_id}")
+        return _CUSTOMIZATION_CACHE[cache_key]
+
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
     if not student:
         raise ValueError(f"Student {student_id} not found.")
@@ -61,12 +71,11 @@ def generate_customization(student_id: int, job_id: int, db: Session) -> Dict[st
     if cover_result is None:
         cover_result = _fallback_cover_letter(student, job)
 
-    # Hallucination guard: verify cover letter doesn't mention skills not in profile
     cover_result["hallucination_check"] = _check_hallucination(
         cover_result.get("body", ""), student
     )
 
-    return {
+    result = {
         "student_id": student_id,
         "job_id": job_id,
         "job_title": job.title,
@@ -75,6 +84,8 @@ def generate_customization(student_id: int, job_id: int, db: Session) -> Dict[st
         "resume_customization": resume_result,
         "cover_letter": cover_result,
     }
+    _CUSTOMIZATION_CACHE[cache_key] = result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -177,16 +188,24 @@ def _call_gemini_resume(
 ) -> Optional[Dict[str, Any]]:
     if not HAS_GENAI or not GOOGLE_API_KEY:
         return None
-    try:
-        prompt = _RESUME_PROMPT.format(profile=profile_text, job=job_text)
-        model = genai.GenerativeModel("gemini-3.6-flash")
-        # Timeout raised to 45s — 2s was too aggressive and caused silent fallback to empty output
-        response = model.generate_content(prompt, request_options={"timeout": 45})
-        parsed = _parse_json(response.text.strip())
-        return _validate_resume_response(parsed)
-    except Exception as e:
-        print(f"Warning: Gemini resume customization failed ({e}). Using fallback.")
-        return None
+    for model_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
+        try:
+            prompt = _RESUME_PROMPT.format(profile=profile_text, job=job_text)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.2, "max_output_tokens": 2048},
+                request_options={"timeout": 25},
+            )
+            parsed = _parse_json(response.text.strip())
+            result = _validate_resume_response(parsed)
+            if result is not None:
+                return result
+        except Exception as e:
+            print(f"Warning: Gemini ({model_name}) resume customization failed ({e}). Trying next.")
+            continue
+    print("Warning: All Gemini models failed for resume customization. Using fallback.")
+    return None
 
 
 def _validate_resume_response(parsed: Any) -> Optional[Dict[str, Any]]:
@@ -234,16 +253,24 @@ def _call_gemini_cover_letter(
 ) -> Optional[Dict[str, Any]]:
     if not HAS_GENAI or not GOOGLE_API_KEY:
         return None
-    try:
-        prompt = _COVER_LETTER_PROMPT.format(profile=profile_text, job=job_text)
-        model = genai.GenerativeModel("gemini-3.6-flash")
-        # Timeout raised to 45s — consistent with resume customization call
-        response = model.generate_content(prompt, request_options={"timeout": 45})
-        parsed = _parse_json(response.text.strip())
-        return _validate_cover_letter_response(parsed)
-    except Exception as e:
-        print(f"Warning: Gemini cover letter generation failed ({e}). Using fallback.")
-        return None
+    for model_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
+        try:
+            prompt = _COVER_LETTER_PROMPT.format(profile=profile_text, job=job_text)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.3, "max_output_tokens": 2048},
+                request_options={"timeout": 25},
+            )
+            parsed = _parse_json(response.text.strip())
+            result = _validate_cover_letter_response(parsed)
+            if result is not None:
+                return result
+        except Exception as e:
+            print(f"Warning: Gemini ({model_name}) cover letter failed ({e}). Trying next.")
+            continue
+    print("Warning: All Gemini models failed for cover letter. Using fallback.")
+    return None
 
 
 def _validate_cover_letter_response(parsed: Any) -> Optional[Dict[str, Any]]:

@@ -10,7 +10,6 @@ from app.services.llm_extractor import extract_structured_profile
 
 router = APIRouter(prefix="/students", tags=["resumes"])
 
-
 def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> None:
     """
     Background task: parse PDF -> LLM extract -> save skills/education/experience/projects.
@@ -73,8 +72,14 @@ def _run_resume_pipeline(resume_id: int, student_id: int, stored_path: str) -> N
         resume.parsing_status = "success"
         db.commit()
 
-        # Clear cached matches so next fetch uses the updated profile
+        # Clear cached matches AND agent caches so next fetch uses updated profile
         clear_matches_cache(student_id)
+        from app.services.skill_gap_agent import clear_skill_gap_cache
+        from app.services.customization_agent import clear_customization_cache
+        from app.services.interview_prep_agent import clear_interview_prep_cache
+        clear_skill_gap_cache(student_id)
+        clear_customization_cache(student_id)
+        clear_interview_prep_cache(student_id)
 
     except Exception as e:
         db.rollback()

@@ -231,15 +231,16 @@ JSON format (respond with one object per job, in an array like this):
 ]
 """
     # 1. Try Gemini with valid fast models
-    # Priority: gemini-1.5-flash (fast, free tier) -> gemini-1.5-flash-8b (lightest)
+    # Priority: gemini-2.0-flash → gemini-1.5-flash → gemini-flash-latest
     if HAS_GENAI and GOOGLE_API_KEY:
-        candidate_models = ["gemini-1.5-flash", "gemini-1.5-flash-8b"]
+        candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
         for model_name in candidate_models:
             try:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(
                     prompt,
                     generation_config={"temperature": 0.1, "max_output_tokens": 1024},
+                    request_options={"timeout": 25},
                 )
                 raw_output = response.text.strip()
                 parsed = _parse_json_string(raw_output)
@@ -247,7 +248,7 @@ JSON format (respond with one object per job, in an array like this):
                 if validated is not None:
                     return validated
             except Exception as e:
-                print(f"Warning: Gemini ({model_name}) matching API call failed ({e}).")
+                print(f"Warning: Gemini ({model_name}) matching API call failed ({e}). Trying next.")
                 continue
 
     return _fallback_scoring(student, jobs)

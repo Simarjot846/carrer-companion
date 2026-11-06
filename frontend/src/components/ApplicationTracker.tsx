@@ -254,43 +254,18 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ student 
   const [editingApp, setEditingApp] = useState<Application | undefined>(undefined);
   const [saving, setSaving] = useState(false);
 
-  // Inline status dropdown
+  // Inline status dropdown — position tracked via fixed positioning to escape overflow:hidden
   const [statusDropdown, setStatusDropdown] = useState<number | null>(null);
-  const [statusDropdownAbove, setStatusDropdownAbove] = useState(false);
-  const [statusMenuMaxHeight, setStatusMenuMaxHeight] = useState(260);
-
-  const demoApps: Application[] = [
-    {
-      id: 1,
-      student_id: student.id,
-      company_name: 'CloudScale Systems',
-      job_title: 'Software Engineering Intern - Backend',
-      application_date: '2026-10-06',
-      deadline: '2026-10-06',
-      status: 'Applied',
-      notes: 'Updated by E2E test',
-      created_at: '2026-10-01T00:00:00Z',
-      updated_at: '2026-10-01T00:00:00Z',
-    },
-  ];
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const demoDashboard: DashboardSummary = {
-    total_applications: 1,
-    active_applications: 1,
-    applied_count: 1,
+    total_applications: 0,
+    active_applications: 0,
+    applied_count: 0,
     interview_scheduled: 0,
     offers_received: 0,
     rejected_count: 0,
-    upcoming: [
-      {
-        application_id: 1,
-        company_name: 'CloudScale Systems',
-        job_title: 'Software Engineering Intern - Backend',
-        type: 'deadline',
-        date: '2026-10-06',
-        days_away: 0,
-      },
-    ],
+    upcoming: [],
   };
 
   const load = useCallback(async () => {
@@ -304,13 +279,16 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ student 
       setApps(appList);
       setDashboard(dash);
     } catch (err: any) {
-      console.warn('Falling back to demo tracker state:', err);
-      setApps(demoApps);
-      setDashboard(demoDashboard);
-      setError(null);
+      setError(err.message || 'Failed to load applications. Check your connection and try again.');
+      // Keep previous data if any; don't show fake demo data
+      if (apps.length === 0) {
+        setApps([]);
+        setDashboard(demoDashboard);
+      }
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student.id]);
 
   useEffect(() => { load(); }, [load]);
@@ -544,20 +522,23 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ student 
                 {app.job_title}
               </div>
 
-              {/* Status — clickable dropdown */}
+              {/* Status — clickable dropdown rendered via fixed positioning to escape overflow:hidden */}
               <div className="application-status" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
                 <button
                   onClick={e => {
                     if (statusDropdown === app.id) {
                       setStatusDropdown(null);
+                      setDropdownPos(null);
                       return;
                     }
-                    const buttonRect = e.currentTarget.getBoundingClientRect();
-                    const spaceAbove = Math.max(0, buttonRect.top - 12);
-                    const spaceBelow = Math.max(0, window.innerHeight - buttonRect.bottom - 12);
-                    const openAbove = spaceAbove > spaceBelow;
-                    setStatusDropdownAbove(openAbove);
-                    setStatusMenuMaxHeight(Math.max(80, Math.min(260, (openAbove ? spaceAbove : spaceBelow) - 8)));
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const spaceBelow = window.innerHeight - rect.bottom - 8;
+                    const menuH = Math.min(260, APPLICATION_STATUSES.length * 38 + 12);
+                    // Open above if not enough room below
+                    const top = spaceBelow >= menuH
+                      ? rect.bottom + 4
+                      : rect.top - menuH - 4;
+                    setDropdownPos({ top, left: rect.left, width: Math.max(200, rect.width) });
                     setStatusDropdown(app.id);
                   }}
                   style={{
@@ -568,30 +549,7 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ student 
                   <StatusBadge status={app.status} />
                   <ChevronDown style={{ width: '12px', height: '12px', color: 'var(--color-stone)' }} />
                 </button>
-                {statusDropdown === app.id && (
-                  <div className="ds-card application-status-menu" style={{ position: 'absolute', top: statusDropdownAbove ? 'auto' : '100%', bottom: statusDropdownAbove ? '100%' : 'auto', left: 0, zIndex: 50, width: '200px', padding: '6px', marginTop: statusDropdownAbove ? 0 : '4px', marginBottom: statusDropdownAbove ? '4px' : 0, maxHeight: `${statusMenuMaxHeight}px`, overflowY: 'auto' }}>
-                    {APPLICATION_STATUSES.map(s => (
-                      <button
-                        key={s}
-                        onClick={() => handleQuickStatus(app, s as ApplicationStatus)}
-                        style={{
-                          width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: '8px',
-                          background: app.status === s ? 'var(--color-leaf-bg)' : 'transparent',
-                          border: 'none', cursor: 'pointer', fontSize: '14px',
-                          color: app.status === s ? 'var(--color-forest)' : 'var(--color-ink)',
-                          fontWeight: app.status === s ? '700' : '500',
-                          transition: 'background .12s',
-                        }}
-                        onMouseEnter={e => { if (app.status !== s) e.currentTarget.style.background = 'var(--color-paper)'; }}
-                        onMouseLeave={e => { if (app.status !== s) e.currentTarget.style.background = 'transparent'; }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
-
               {/* Applied date */}
               <div className="application-applied" data-label="Applied" style={{ fontSize: '14px', color: 'var(--color-stone)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 {app.application_date ? (
@@ -632,7 +590,47 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({ student 
         </div>
       )}
 
-      {/* Notes panel for selected rows (shown inline as expanded detail) */}
+      {/* Status dropdown portal — rendered at document level to escape overflow:hidden */}
+      {statusDropdown !== null && dropdownPos && (() => {
+        const app = filtered.find(a => a.id === statusDropdown);
+        if (!app) return null;
+        return (
+          <div
+            className="ds-card"
+            style={{
+              position: 'fixed',
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: `${dropdownPos.width}px`,
+              zIndex: 9999,
+              padding: '6px',
+              maxHeight: '260px',
+              overflowY: 'auto',
+              boxShadow: 'var(--shadow-lg)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {APPLICATION_STATUSES.map(s => (
+              <button
+                key={s}
+                onClick={() => handleQuickStatus(app, s as ApplicationStatus)}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '9px 12px', borderRadius: '8px',
+                  background: app.status === s ? 'var(--color-leaf-bg)' : 'transparent',
+                  border: 'none', cursor: 'pointer', fontSize: '14px',
+                  color: app.status === s ? 'var(--color-forest)' : 'var(--color-ink)',
+                  fontWeight: app.status === s ? '700' : '500',
+                  transition: 'background .12s',
+                }}
+                onMouseEnter={e => { if (app.status !== s) e.currentTarget.style.background = 'var(--color-paper)'; }}
+                onMouseLeave={e => { if (app.status !== s) e.currentTarget.style.background = 'transparent'; }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
       {!loading && filtered.length > 0 && filtered.some(a => a.notes || a.resume_version_note || a.cover_letter_version_note) && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <h3 className="ds-h4" style={{ color: 'var(--color-ink)' }}>Application notes & AI artefacts</h3>

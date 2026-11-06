@@ -184,17 +184,20 @@ def extract_structured_profile(resume_text: str) -> dict:
     """
     prompt = EXTRACTION_PROMPT_TEMPLATE.replace("__RESUME_TEXT__", resume_text)
 
-    # 1. Try Gemini: gemini-1.5-flash is fast, free-tier, accurate
+    # 1. Try Gemini — use the fastest available models with an explicit timeout so
+    #    Render's request timeout can't silently kill the call and drop to fallback.
+    #    Model priority: gemini-2.0-flash (fast, current) → gemini-1.5-flash → gemini-flash-latest
     if HAS_GENAI and GOOGLE_API_KEY:
-        for model_name in ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.0-pro"]:
+        for model_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
             try:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(
                     prompt,
                     generation_config={
-                        "temperature": 0.0,       # deterministic extraction
+                        "temperature": 0.0,        # deterministic extraction
                         "max_output_tokens": 4096, # enough for long resumes
                     },
+                    request_options={"timeout": 25},  # explicit 25s — prevents silent hang on Render
                 )
                 raw_output = response.text.strip()
                 parsed = _parse_raw_llm_json(raw_output)
@@ -205,6 +208,7 @@ def extract_structured_profile(resume_text: str) -> dict:
                           f"{len(cleaned['skills'])} skills, {len(cleaned['education'])} edu, "
                           f"{len(cleaned['experience'])} exp, {len(cleaned['projects'])} projects")
                     return cleaned
+                print(f"[llm_extractor] Gemini ({model_name}) returned empty data — trying next model.")
             except Exception as e:
                 print(f"[llm_extractor] Gemini ({model_name}) failed: {e}. Trying next.")
                 continue

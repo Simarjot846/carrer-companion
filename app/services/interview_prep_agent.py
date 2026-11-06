@@ -23,6 +23,21 @@ except Exception:
     genai = None
     HAS_GENAI = False
 
+# ---------------------------------------------------------------------------
+# In-memory cache — keyed by (student_id, job_id)
+# ---------------------------------------------------------------------------
+_INTERVIEW_PREP_CACHE: Dict[tuple, Dict[str, Any]] = {}
+
+
+def clear_interview_prep_cache(student_id: int | None = None) -> None:
+    global _INTERVIEW_PREP_CACHE
+    if student_id is None:
+        _INTERVIEW_PREP_CACHE.clear()
+    else:
+        keys_to_del = [k for k in _INTERVIEW_PREP_CACHE if k[0] == student_id]
+        for k in keys_to_del:
+            del _INTERVIEW_PREP_CACHE[k]
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
@@ -34,16 +49,18 @@ def generate_interview_prep(
     db: Session,
     skill_gaps: Optional[Dict[str, Any]] = None,
     use_llm: bool = True,
+    force_refresh: bool = False,
 ) -> Dict[str, Any]:
     """
-    Returns a structured interview prep package:
-      technical_questions: List[{question, prep_guidance}]
-      resume_questions: List[{question, prep_guidance}]
-      project_questions: List[{question, prep_guidance}]
-      role_questions: List[{question, prep_guidance}]
-      hr_questions: List[{question, prep_guidance}]
-      topics_to_revise: List[str]
+    Returns a structured interview prep package.
+    Results are cached in-memory by (student_id, job_id) — repeat views are instant.
+    Pass force_refresh=True to bypass the cache and regenerate.
     """
+    cache_key = (student_id, job_id)
+    if not force_refresh and cache_key in _INTERVIEW_PREP_CACHE:
+        print(f"[interview_prep] Cache hit for student={student_id}, job={job_id}")
+        return _INTERVIEW_PREP_CACHE[cache_key]
+
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
     if not student:
         raise ValueError(f"Student {student_id} not found.")
@@ -65,6 +82,8 @@ def generate_interview_prep(
     result["student_name"] = student.name
     result["job_id"] = job_id
     result["student_id"] = student_id
+
+    _INTERVIEW_PREP_CACHE[cache_key] = result
     return result
 
 
@@ -171,16 +190,24 @@ def _call_gemini_prep(
 ) -> Optional[Dict[str, Any]]:
     if not HAS_GENAI or not GOOGLE_API_KEY:
         return None
-    try:
-        prompt = _PREP_PROMPT.format(profile=profile_text, job=job_text, gaps=gaps_text)
-        model = genai.GenerativeModel("gemini-3.6-flash")
-        # Timeout raised to 45s — consistent with other agent calls
-        response = model.generate_content(prompt, request_options={"timeout": 45})
-        parsed = _parse_json(response.text.strip())
-        return _validate_prep_response(parsed)
-    except Exception as e:
-        print(f"Warning: Gemini interview prep generation failed ({e}). Using fallback.")
-        return None
+    for model_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
+        try:
+            prompt = _PREP_PROMPT.format(profile=profile_text, job=job_text, gaps=gaps_text)
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.2, "max_output_tokens": 2048},
+                request_options={"timeout": 25},
+            )
+            parsed = _parse_json(response.text.strip())
+            result = _validate_prep_response(parsed)
+            if result is not None:
+                return result
+        except Exception as e:
+            print(f"Warning: Gemini ({model_name}) interview prep failed ({e}). Trying next.")
+            continue
+    print("Warning: All Gemini models failed for interview prep. Using fallback.")
+    return None
 
 
 def _validate_prep_response(parsed: Any) -> Optional[Dict[str, Any]]:

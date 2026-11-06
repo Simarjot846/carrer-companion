@@ -22,21 +22,39 @@ except Exception:
     genai = None
     HAS_GENAI = False
 
+# ---------------------------------------------------------------------------
+# In-memory cache — keyed by (student_id, job_id)
+# First call runs LLM; repeat views within the same process are instant.
+# ---------------------------------------------------------------------------
+_SKILL_GAP_CACHE: Dict[tuple, Dict[str, Any]] = {}
+
+
+def clear_skill_gap_cache(student_id: int | None = None) -> None:
+    """Clears cache entries for a student (or all entries if student_id is None)."""
+    global _SKILL_GAP_CACHE
+    if student_id is None:
+        _SKILL_GAP_CACHE.clear()
+    else:
+        keys_to_del = [k for k in _SKILL_GAP_CACHE if k[0] == student_id]
+        for k in keys_to_del:
+            del _SKILL_GAP_CACHE[k]
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def analyze_skill_gap(student_id: int, job_id: int, db: Session) -> Dict[str, Any]:
+def analyze_skill_gap(student_id: int, job_id: int, db: Session, force_refresh: bool = False) -> Dict[str, Any]:
     """
     Returns a structured skill gap report for a student vs a specific job.
-    Output keys:
-      job_title, company, student_name,
-      critical_missing, partially_demonstrated, preferred_gaps,
-      experience_gaps, qualification_gaps,
-      overall_readiness_score (0-100)
-    Each gap item: { skill/area, why_it_matters, recommendation }
+    Results are cached in-memory by (student_id, job_id) — repeat calls are instant.
+    Pass force_refresh=True to bypass the cache and re-run the LLM.
     """
+    cache_key = (student_id, job_id)
+    if not force_refresh and cache_key in _SKILL_GAP_CACHE:
+        print(f"[skill_gap] Cache hit for student={student_id}, job={job_id}")
+        return _SKILL_GAP_CACHE[cache_key]
+
     student = db.query(models.Student).filter(models.Student.id == student_id).first()
     if not student:
         raise ValueError(f"Student {student_id} not found.")
@@ -59,6 +77,8 @@ def analyze_skill_gap(student_id: int, job_id: int, db: Session) -> Dict[str, An
     llm_result["student_name"] = student.name
     llm_result["job_id"] = job.id
     llm_result["student_id"] = student.id
+
+    _SKILL_GAP_CACHE[cache_key] = llm_result
     return llm_result
 
 
@@ -183,15 +203,24 @@ def _call_gemini_skill_gap(
 
     prompt = _SKILL_GAP_PROMPT.format(profile=profile_text, job=job_text)
 
-    try:
-        model = genai.GenerativeModel("gemini-3.6-flash")
-        response = model.generate_content(prompt, request_options={"timeout": 45})
-        raw = response.text.strip()
-        parsed = _parse_json(raw)
-        return _validate_skill_gap_response(parsed)
-    except Exception as e:
-        print(f"Warning: Gemini skill gap analysis failed ({e}). Using deterministic fallback.")
-        return None
+    for model_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.1, "max_output_tokens": 2048},
+                request_options={"timeout": 25},
+            )
+            raw = response.text.strip()
+            parsed = _parse_json(raw)
+            result = _validate_skill_gap_response(parsed)
+            if result is not None:
+                return result
+        except Exception as e:
+            print(f"Warning: Gemini ({model_name}) skill gap failed ({e}). Trying next.")
+            continue
+    print("Warning: All Gemini models failed for skill gap. Using deterministic fallback.")
+    return None
 
 
 def _validate_skill_gap_response(parsed: Any) -> Optional[Dict[str, Any]]:
