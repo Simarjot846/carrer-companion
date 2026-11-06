@@ -34,16 +34,30 @@ export async function uploadResume(
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/students/${studentId}/resume`, {
-    method: 'POST',
-    body: formData,
-  });
+  // Generous 90s timeout: cold start (~50s) + Gemini extraction (~20s) + margin
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90_000);
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({ detail: 'Resume upload or parsing failed' }));
-    throw new Error(errData.detail || 'Failed to upload resume');
+  try {
+    const res = await fetch(`${API_BASE}/students/${studentId}/resume`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({ detail: 'Resume upload or parsing failed' }));
+      throw new Error(errData.detail || 'Failed to upload resume');
+    }
+    return res.json();
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. The server may be waking up — please try again in a moment.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 export async function getStudentMatches(

@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   UploadCloud, FileText, CheckCircle2, Sparkles, ArrowRight,
   GraduationCap, Briefcase, Code2, Wrench, RotateCcw, AlertCircle,
+  Zap,
 } from 'lucide-react';
 import type { Student, StudentProfile } from '../types';
 import { uploadResume, getStudentProfile } from '../services/api';
+
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
 interface ResumeUploadStepProps {
   student: Student;
@@ -13,13 +16,13 @@ interface ResumeUploadStepProps {
   onProceedToMatches: () => void;
 }
 
-// Animated stage labels shown while waiting for synchronous parsing
 const STAGES = [
-  { pct: 20,  label: 'Uploading file…' },
-  { pct: 40,  label: 'Extracting text from PDF…' },
-  { pct: 65,  label: 'Sending to Gemini AI…' },
-  { pct: 85,  label: 'Structuring skills & experience…' },
-  { pct: 95,  label: 'Saving to profile…' },
+  { pct: 15,  label: 'Waking up server…' },
+  { pct: 30,  label: 'Uploading file…' },
+  { pct: 50,  label: 'Extracting text from PDF…' },
+  { pct: 70,  label: 'Sending to Gemini AI…' },
+  { pct: 88,  label: 'Structuring skills & experience…' },
+  { pct: 97,  label: 'Saving to profile…' },
 ];
 
 export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
@@ -32,6 +35,21 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
   const [parsingStatus, setParsingStatus] = useState<'none' | 'pending' | 'success' | 'failed'>('none');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [serverReady, setServerReady] = useState<boolean | null>(null); // null=checking, true=ready, false=cold
+  const stageTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Ping the health endpoint on mount to detect cold-start state early
+  useEffect(() => {
+    const pingServer = async () => {
+      try {
+        const r = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) });
+        setServerReady(r.ok);
+      } catch {
+        setServerReady(false); // cold / slow
+      }
+    };
+    pingServer();
+  }, []);
 
   // If the student already has a parsed resume, reflect that on mount
   useEffect(() => {
@@ -42,16 +60,19 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
-  // Advance the animated progress bar while uploading
+  // Advance animated progress bar while uploading
   useEffect(() => {
-    if (!uploading) return;
+    if (!uploading) {
+      if (stageTimerRef.current) clearInterval(stageTimerRef.current);
+      return;
+    }
     let idx = 0;
-    const tick = setInterval(() => {
+    stageTimerRef.current = setInterval(() => {
       idx = Math.min(idx + 1, STAGES.length - 1);
       setStageIdx(idx);
       setProgress(STAGES[idx].pct);
-    }, 2800); // advance every ~2.8s → ~14s to reach 95%
-    return () => clearInterval(tick);
+    }, 3500); // ~3.5s per stage → ~21s to reach final stage
+    return () => { if (stageTimerRef.current) clearInterval(stageTimerRef.current); };
   }, [uploading]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +115,16 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
     setErrorMsg(null);
 
     try {
+      // If server was detected as cold, ping it first and wait for it to wake
+      if (serverReady === false) {
+        try {
+          await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(55_000) });
+          setServerReady(true);
+        } catch {
+          // Continue anyway — the main request will handle it
+        }
+      }
+
       // The backend runs the full pipeline synchronously.
       // parsing_status in the response is "success" or "failed" — no polling needed.
       const res = await uploadResume(student.id, selectedFile);
@@ -111,11 +142,8 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
       }
     } catch (err: any) {
       setParsingStatus('failed');
-      // Surface the exact backend error message if available
-      const detail = err.message || 'Upload failed — please try again.';
-      setErrorMsg(detail.startsWith('Resume parsing failed:')
-        ? detail.replace('Resume parsing failed: ', '')
-        : detail);
+      const msg: string = err.message || 'Upload failed — please try again.';
+      setErrorMsg(msg);
     } finally {
       setUploading(false);
     }
@@ -238,6 +266,19 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Server cold-start warning */}
+            {serverReady === false && !uploading && (
+              <div style={{
+                marginTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                fontSize: '13px', color: 'var(--color-gold-deep)',
+                background: 'rgba(201,150,58,.09)', border: '1px solid rgba(201,150,58,.22)',
+                borderRadius: '8px', padding: '8px 14px',
+              }}>
+                <Zap style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+                Server is starting up — first parse may take 30–60s. Subsequent ones are fast.
+              </div>
+            )}
           </div>
         </div>
 
@@ -259,7 +300,7 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
               }} />
             </div>
             <p style={{ fontSize: '13px', color: 'var(--color-stone)', marginTop: '10px', textAlign: 'center' }}>
-              AI extraction takes 10–20 seconds. Please don't close this tab.
+              AI extraction takes 15–60s depending on server state. Please don't close this tab.
             </p>
           </div>
         )}
@@ -268,10 +309,21 @@ export const ResumeUploadStep: React.FC<ResumeUploadStepProps> = ({
         {parsingStatus === 'failed' && !uploading && (
           <div className="ds-alert ds-alert-error">
             <AlertCircle className="ds-alert-icon" />
-            <div className="ds-alert-copy">
+            <div className="ds-alert-copy" style={{ flex: 1 }}>
               <strong>Resume could not be parsed</strong>
               <div>{errorMsg || 'Please try a clear, text-based PDF resume (not a scanned image).'}</div>
+              {(errorMsg || '').includes('timed out') && (
+                <div style={{ marginTop: '8px', fontSize: '14px', color: 'var(--color-clay)' }}>
+                  The server was waking up from sleep. It's now ready — click "Parse & structure" again.
+                </div>
+              )}
             </div>
+            <button
+              onClick={() => { setParsingStatus('none'); setErrorMsg(null); }}
+              style={{ padding: '8px 16px', borderRadius: '8px', background: 'var(--color-clay)', color: 'white', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: '600', flexShrink: 0 }}
+            >
+              Try again
+            </button>
           </div>
         )}
 
