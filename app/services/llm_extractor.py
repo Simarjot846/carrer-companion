@@ -30,19 +30,20 @@ except Exception:
 _SYSTEM_INSTRUCTION = (
     "You are a precise resume parser. Extract ONLY real information from the resume. "
     "NEVER invent, guess, or use placeholder values. Use null for missing fields. "
-    "Respond with ONLY valid JSON — no markdown, no explanation."
+    "Respond with ONLY valid JSON — start with { and end with }. "
+    "No markdown, no code fences, no explanation, no text before or after the JSON."
 )
 
 _EXTRACTION_PROMPT = """\
-Extract structured information from this resume. Return ONLY valid JSON, no markdown.
+Extract structured information from this resume. Your response must start with {{ and end with }}.
 
-JSON schema (use these exact keys):
-{
-  "skills": [{"name": "...", "category": "technical|tool|soft"}],
-  "education": [{"institution": "...", "degree": "...", "field_of_study": "...", "start_date": "...", "end_date": "...", "grade": "..."}],
-  "experience": [{"title": "...", "organization": "...", "start_date": "...", "end_date": "...", "description": "..."}],
-  "projects": [{"title": "...", "description": "...", "technologies": "...", "link": "..."}]
-}
+Return ONLY valid JSON matching this schema exactly:
+{{
+  "skills": [{{"name": "...", "category": "technical|tool|soft"}}],
+  "education": [{{"institution": "...", "degree": "...", "field_of_study": "...", "start_date": "...", "end_date": "...", "grade": "..."}}],
+  "experience": [{{"title": "...", "organization": "...", "start_date": "...", "end_date": "...", "description": "..."}}],
+  "projects": [{{"title": "...", "description": "...", "technologies": "...", "link": "..."}}]
+}}
 
 Rules:
 - skills: extract EVERY skill (languages, frameworks, databases, cloud, tools, soft skills). category=technical for langs/frameworks/concepts, tool for platforms/IDEs/services, soft for interpersonal.
@@ -50,6 +51,7 @@ Rules:
 - experience: use REAL company names and REAL job titles. Include ALL bullet points in description.
 - projects: include ALL projects with their tech stacks and links if present.
 - Use null for any field not found in the resume text. Return [] for empty sections.
+- Output MUST start with {{ — do not include any text before the opening brace.
 
 Resume:
 ---
@@ -112,22 +114,86 @@ def _clean(data: dict) -> dict:
 
 
 def _parse_json(raw: str) -> dict:
-    """Strip markdown fences and parse JSON robustly."""
+    """
+    Strip markdown fences and parse JSON robustly.
+    Handles all the ways Gemini can mangle its output:
+    - ```json ... ``` fences
+    - Leading/trailing whitespace or newlines
+    - Missing outer {} (Gemini sometimes omits the opening brace)
+    - Extra prose before/after the JSON object
+    """
+    # 1. Strip markdown code fences (```json...``` or ```...```)
     raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
-    raw = re.sub(r"\s*```$", "", raw, flags=re.MULTILINE)
+    raw = re.sub(r"\s*```\s*$", "", raw, flags=re.MULTILINE)
     raw = raw.strip()
+
+    # 2. Try parsing as-is
     try:
         parsed = json.loads(raw)
-    except json.JSONDecodeError:
-        m = re.search(r"\{[\s\S]+\}", raw)
-        if m:
+        if isinstance(parsed, dict):
+            _normalize(parsed)
+            return parsed
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # 3. Try extracting a complete {...} object from anywhere in the text
+    m = re.search(r"\{[\s\S]*\}", raw)
+    if m:
+        try:
             parsed = json.loads(m.group())
-        else:
-            raise ValueError(f"No valid JSON in LLM output: {raw[:200]}")
+            if isinstance(parsed, dict):
+                _normalize(parsed)
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # 4. Gemini sometimes omits the outer braces — wrap and try again
+    #    e.g. output starts with: \n  "skills": [...], "education": [...]
+    if '"skills"' in raw or '"education"' in raw:
+        # Find where the key-value content starts and wrap it
+        wrapped = "{" + raw.strip().rstrip(",") + "}"
+        try:
+            parsed = json.loads(wrapped)
+            if isinstance(parsed, dict):
+                _normalize(parsed)
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # 5. Last resort — try to salvage with relaxed extraction per key
+    result = _extract_keys_individually(raw)
+    if result:
+        return result
+
+    raise ValueError(f"Could not parse JSON from LLM output. First 300 chars: {raw[:300]!r}")
+
+
+def _normalize(parsed: dict) -> None:
+    """Ensure all required keys exist and are lists."""
     for key in ("skills", "education", "experience", "projects"):
         if not isinstance(parsed.get(key), list):
             parsed[key] = []
-    return parsed
+
+
+def _extract_keys_individually(raw: str) -> dict | None:
+    """
+    Last-resort parser: extract each top-level array by regex.
+    Handles the case where the JSON is malformed but the arrays are intact.
+    """
+    result: dict = {"skills": [], "education": [], "experience": [], "projects": []}
+    found_any = False
+    for key in ("skills", "education", "experience", "projects"):
+        # Match "key": [ ... ] where the array may span multiple lines
+        pattern = rf'"{key}"\s*:\s*(\[[\s\S]*?\])\s*(?:,\s*"|\Z)'
+        m = re.search(pattern, raw)
+        if m:
+            try:
+                result[key] = json.loads(m.group(1))
+                if isinstance(result[key], list) and result[key]:
+                    found_any = True
+            except (json.JSONDecodeError, ValueError):
+                result[key] = []
+    return result if found_any else None
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +231,7 @@ def extract_structured_profile(resume_text: str) -> dict:
                     request_options={"timeout": 20},
                 )
                 raw = response.text.strip()
+                print(f"[llm_extractor] {model_name} raw output (first 120 chars): {raw[:120]!r}")
                 parsed = _parse_json(raw)
                 cleaned = _clean(parsed)
 
@@ -185,7 +252,7 @@ def extract_structured_profile(resume_text: str) -> dict:
                 print(f"[llm_extractor] {model_name} returned all-empty — trying next.")
 
             except Exception as e:
-                print(f"[llm_extractor] {model_name} failed: {e}")
+                print(f"[llm_extractor] {model_name} failed: {type(e).__name__}: {e}")
                 continue
     else:
         print("[llm_extractor] No GOOGLE_API_KEY — using rule-based fallback.")
