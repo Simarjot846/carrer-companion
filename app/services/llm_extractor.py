@@ -8,6 +8,7 @@ Falls back to rule-based extraction if all LLM calls fail.
 import json
 import re
 import warnings
+from typing import Optional
 from app.config import GOOGLE_API_KEY
 
 try:
@@ -175,24 +176,44 @@ def _normalize(parsed: dict) -> None:
             parsed[key] = []
 
 
-def _extract_keys_individually(raw: str) -> dict | None:
+def _extract_keys_individually(raw: str) -> Optional[dict]:
     """
-    Last-resort parser: extract each top-level array by regex.
-    Handles the case where the JSON is malformed but the arrays are intact.
+    Last-resort parser: extract each top-level JSON array by finding balanced brackets.
+    Uses greedy matching to handle nested objects inside arrays correctly.
     """
     result: dict = {"skills": [], "education": [], "experience": [], "projects": []}
     found_any = False
+
     for key in ("skills", "education", "experience", "projects"):
-        # Match "key": [ ... ] where the array may span multiple lines
-        pattern = rf'"{key}"\s*:\s*(\[[\s\S]*?\])\s*(?:,\s*"|\Z)'
-        m = re.search(pattern, raw)
-        if m:
-            try:
-                result[key] = json.loads(m.group(1))
-                if isinstance(result[key], list) and result[key]:
+        # Find "key": then scan forward for the opening [
+        key_pat = re.search(rf'"{key}"\s*:\s*\[', raw)
+        if not key_pat:
+            continue
+        start = key_pat.end() - 1  # position of the opening [
+
+        # Walk forward to find the balanced closing ]
+        depth = 0
+        end = start
+        for i, ch in enumerate(raw[start:], start):
+            if ch == '[':
+                depth += 1
+            elif ch == ']':
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        else:
+            continue  # no balanced bracket found
+
+        try:
+            parsed = json.loads(raw[start:end])
+            if isinstance(parsed, list):
+                result[key] = parsed
+                if parsed:
                     found_any = True
-            except (json.JSONDecodeError, ValueError):
-                result[key] = []
+        except (json.JSONDecodeError, ValueError):
+            pass
+
     return result if found_any else None
 
 

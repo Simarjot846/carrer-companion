@@ -98,7 +98,7 @@ def get_interview_prep(student_id: int, job_id: int, db: Session = Depends(get_d
             student_id=student_id,
             job_id=job_id,
             db=db,
-            use_llm=False,
+            use_llm=True,  # Always use Gemini — cached after first call
         )
 
         def _to_q(item: dict) -> schemas.InterviewQuestion:

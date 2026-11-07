@@ -8,10 +8,11 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Proxy /api/* → http://127.0.0.1:8000/api/*
+      // No rewrite — backend mounts all routers under /api prefix in main.py
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

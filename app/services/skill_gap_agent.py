@@ -245,13 +245,22 @@ def _validate_skill_gap_response(parsed: Any) -> Optional[Dict[str, Any]]:
 
 
 def _parse_json(raw: str) -> Any:
+    """Robustly parse JSON from Gemini output — strips fences, handles missing braces."""
+    import re as _re
+    raw = _re.sub(r"^```(?:json)?\s*", "", raw, flags=_re.MULTILINE)
+    raw = _re.sub(r"\s*```\s*$", "", raw, flags=_re.MULTILINE)
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
-    return json.loads(raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    m = _re.search(r"\{[\s\S]*\}", raw)
+    if m:
+        try:
+            return json.loads(m.group())
+        except json.JSONDecodeError:
+            pass
+    raise ValueError(f"Cannot parse JSON: {raw[:200]!r}")
 
 
 # ---------------------------------------------------------------------------

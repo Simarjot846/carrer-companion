@@ -11,9 +11,7 @@ import { InterviewPrepView } from './components/InterviewPrepView';
 import { AssistantChat } from './components/AssistantChat';
 import { ApplicationTracker } from './components/ApplicationTracker';
 import type { Student, StudentProfile, JobMatch } from './types';
-import { listStudents, getStudentProfile } from './services/api';
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+import { listStudents, getStudentProfile, API_BASE } from './services/api';
 
 /** Ping the backend health endpoint — returns true if alive */
 async function pingBackend(): Promise<boolean> {

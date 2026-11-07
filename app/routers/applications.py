@@ -205,54 +205,6 @@ def list_applications(
     return [_application_to_out(a) for a in apps]
 
 
-@router.patch("/{student_id}/applications/{application_id}", response_model=schemas.ApplicationOut)
-def update_application(
-    student_id: int,
-    application_id: int,
-    body: schemas.ApplicationUpdate,
-    db: Session = Depends(get_db),
-):
-    """Updates one or more fields of an application entry."""
-    _get_student_or_404(student_id, db)
-    app = _get_application_or_404(student_id, application_id, db)
-
-    if body.status is not None and body.status not in models.APPLICATION_STATUSES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid status '{body.status}'. Must be one of: {models.APPLICATION_STATUSES}",
-        )
-
-    update_fields = body.model_dump(exclude_unset=True)
-
-    for field, value in update_fields.items():
-        if field == "application_date":
-            setattr(app, field, _parse_date(value))
-        elif field == "deadline":
-            setattr(app, field, _parse_date(value))
-        elif field == "interview_date":
-            setattr(app, field, _parse_datetime(value))
-        else:
-            setattr(app, field, value)
-
-    app.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(app)
-    return _application_to_out(app)
-
-
-@router.delete("/{student_id}/applications/{application_id}", status_code=204)
-def delete_application(
-    student_id: int,
-    application_id: int,
-    db: Session = Depends(get_db),
-):
-    """Deletes an application entry."""
-    _get_student_or_404(student_id, db)
-    app = _get_application_or_404(student_id, application_id, db)
-    db.delete(app)
-    db.commit()
-
-
 @router.get("/{student_id}/applications/dashboard", response_model=schemas.DashboardSummary)
 def get_applications_dashboard(
     student_id: int,
@@ -260,7 +212,8 @@ def get_applications_dashboard(
 ):
     """
     Returns summary counts and upcoming deadlines/interviews (next 7 days).
-    The 'upcoming' list should be prominently surfaced in the UI.
+    IMPORTANT: this route MUST be declared before any /{application_id} routes
+    to prevent FastAPI from matching "dashboard" as an integer path parameter.
     """
     _get_student_or_404(student_id, db)
 
@@ -276,7 +229,6 @@ def get_applications_dashboard(
     interviews = [a for a in all_apps if a.status == "Interview Scheduled"]
     offers = [a for a in all_apps if a.status == "Offer Received"]
     rejected = [a for a in all_apps if a.status == "Rejected"]
-
     upcoming = _check_upcoming(all_apps, horizon_days=7)
 
     return schemas.DashboardSummary(
@@ -288,3 +240,7 @@ def get_applications_dashboard(
         rejected_count=len(rejected),
         upcoming=upcoming,
     )
+
+
+@router.patch("/{student_id}/applications/{application_id}", response_model=schemas.ApplicationOut)
+def update_application(

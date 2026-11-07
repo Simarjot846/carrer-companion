@@ -5,9 +5,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { Student, StudentProfile } from '../types';
-import { uploadResume, getStudentProfile } from '../services/api';
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+import { uploadResume, getStudentProfile, API_BASE } from '../services/api';
 
 interface ResumeUploadStepProps {
   student: Student;
