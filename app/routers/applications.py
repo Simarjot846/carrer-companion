@@ -2,6 +2,10 @@
 M4.1 — Application Tracking Router
 Provides full CRUD for a student's job application pipeline,
 plus a dashboard endpoint with upcoming deadlines / interview alerts.
+
+Route ordering note:
+  /dashboard MUST be declared before /{application_id} routes so FastAPI
+  does not try to cast the literal string "dashboard" as an integer.
 """
 from datetime import date, datetime, timedelta
 from typing import List, Optional
@@ -26,7 +30,9 @@ def _get_student_or_404(student_id: int, db: Session) -> models.Student:
     return student
 
 
-def _get_application_or_404(student_id: int, application_id: int, db: Session) -> models.Application:
+def _get_application_or_404(
+    student_id: int, application_id: int, db: Session
+) -> models.Application:
     app = (
         db.query(models.Application)
         .filter(
@@ -41,7 +47,6 @@ def _get_application_or_404(student_id: int, application_id: int, db: Session) -
 
 
 def _parse_date(value: Optional[str]) -> Optional[date]:
-    """Parses 'YYYY-MM-DD' into a date object; returns None on failure."""
     if not value:
         return None
     try:
@@ -51,7 +56,6 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
 
 
 def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
-    """Parses ISO datetime string; returns None on failure."""
     if not value:
         return None
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
@@ -63,7 +67,6 @@ def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
 
 
 def _application_to_out(app: models.Application) -> schemas.ApplicationOut:
-    """Converts an Application ORM object to a serialisable schema."""
     return schemas.ApplicationOut(
         id=app.id,
         student_id=app.student_id,
@@ -85,68 +88,62 @@ def _application_to_out(app: models.Application) -> schemas.ApplicationOut:
     )
 
 
-def _check_upcoming(apps: List[models.Application], horizon_days: int = 7) -> List[schemas.UpcomingItem]:
-    """Returns deadlines and interviews falling within the next `horizon_days` days."""
+def _check_upcoming(
+    apps: List[models.Application], horizon_days: int = 7
+) -> List[schemas.UpcomingItem]:
     today = date.today()
     cutoff = today + timedelta(days=horizon_days)
     upcoming: List[schemas.UpcomingItem] = []
 
     for app in apps:
-        # Deadline alert
         if app.deadline and today <= app.deadline <= cutoff:
-            days_away = (app.deadline - today).days
             upcoming.append(schemas.UpcomingItem(
                 application_id=app.id,
                 company_name=app.company_name,
                 job_title=app.job_title,
                 type="deadline",
                 date=app.deadline.isoformat(),
-                days_away=days_away,
+                days_away=(app.deadline - today).days,
             ))
-
-        # Interview alert
         if app.interview_date:
-            interview_date_only = app.interview_date.date()
-            if today <= interview_date_only <= cutoff:
-                days_away = (interview_date_only - today).days
+            iv_date = app.interview_date.date()
+            if today <= iv_date <= cutoff:
                 upcoming.append(schemas.UpcomingItem(
                     application_id=app.id,
                     company_name=app.company_name,
                     job_title=app.job_title,
                     type="interview",
                     date=app.interview_date.isoformat(),
-                    days_away=days_away,
+                    days_away=(iv_date - today).days,
                 ))
 
-    # Sort by proximity
     upcoming.sort(key=lambda x: x.days_away)
     return upcoming
 
 
 # ---------------------------------------------------------------------------
-# Endpoints
+# Endpoints — order matters: /dashboard BEFORE /{application_id}
 # ---------------------------------------------------------------------------
 
-@router.post("/{student_id}/applications", response_model=schemas.ApplicationOut, status_code=201)
+@router.post(
+    "/{student_id}/applications",
+    response_model=schemas.ApplicationOut,
+    status_code=201,
+)
 def create_application(
     student_id: int,
     body: schemas.ApplicationCreate,
     db: Session = Depends(get_db),
 ):
-    """Creates a new application entry for a student."""
     _get_student_or_404(student_id, db)
 
-    # Validate status value
     if body.status not in models.APPLICATION_STATUSES:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid status '{body.status}'. Must be one of: {models.APPLICATION_STATUSES}",
+            detail=f"Invalid status. Must be one of: {models.APPLICATION_STATUSES}",
         )
-
-    # Validate job_posting_id reference if provided
     if body.job_posting_id is not None:
-        posting = db.query(models.JobPosting).filter(models.JobPosting.id == body.job_posting_id).first()
-        if not posting:
+        if not db.query(models.JobPosting).filter(models.JobPosting.id == body.job_posting_id).first():
             raise HTTPException(status_code=404, detail=f"JobPosting {body.job_posting_id} not found.")
 
     app = models.Application(
@@ -174,73 +171,92 @@ def create_application(
 @router.get("/{student_id}/applications", response_model=List[schemas.ApplicationOut])
 def list_applications(
     student_id: int,
-    company: Optional[str] = Query(None, description="Filter by company name (case-insensitive substring)"),
-    role: Optional[str] = Query(None, description="Filter by job title (case-insensitive substring)"),
-    status: Optional[str] = Query(None, description="Filter by exact status"),
-    date_from: Optional[str] = Query(None, description="Filter applications on/after this date (YYYY-MM-DD)"),
-    date_to: Optional[str] = Query(None, description="Filter applications on/before this date (YYYY-MM-DD)"),
+    company: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    """Lists all applications for a student with optional filters."""
     _get_student_or_404(student_id, db)
-
-    query = db.query(models.Application).filter(models.Application.student_id == student_id)
-
+    q = db.query(models.Application).filter(models.Application.student_id == student_id)
     if company:
-        query = query.filter(models.Application.company_name.ilike(f"%{company}%"))
+        q = q.filter(models.Application.company_name.ilike(f"%{company}%"))
     if role:
-        query = query.filter(models.Application.job_title.ilike(f"%{role}%"))
+        q = q.filter(models.Application.job_title.ilike(f"%{role}%"))
     if status:
-        query = query.filter(models.Application.status == status)
-    if date_from:
-        df = _parse_date(date_from)
-        if df:
-            query = query.filter(models.Application.application_date >= df)
-    if date_to:
-        dt = _parse_date(date_to)
-        if dt:
-            query = query.filter(models.Application.application_date <= dt)
-
-    apps = query.order_by(models.Application.created_at.desc()).all()
-    return [_application_to_out(a) for a in apps]
+        q = q.filter(models.Application.status == status)
+    if date_from and (df := _parse_date(date_from)):
+        q = q.filter(models.Application.application_date >= df)
+    if date_to and (dt := _parse_date(date_to)):
+        q = q.filter(models.Application.application_date <= dt)
+    return [_application_to_out(a) for a in q.order_by(models.Application.created_at.desc()).all()]
 
 
+# *** /dashboard MUST come before /{application_id} ***
 @router.get("/{student_id}/applications/dashboard", response_model=schemas.DashboardSummary)
 def get_applications_dashboard(
     student_id: int,
     db: Session = Depends(get_db),
 ):
-    """
-    Returns summary counts and upcoming deadlines/interviews (next 7 days).
-    IMPORTANT: this route MUST be declared before any /{application_id} routes
-    to prevent FastAPI from matching "dashboard" as an integer path parameter.
-    """
     _get_student_or_404(student_id, db)
-
     all_apps = (
         db.query(models.Application)
         .filter(models.Application.student_id == student_id)
         .all()
     )
-
-    inactive_statuses = {"Rejected", "Withdrawn"}
-    active = [a for a in all_apps if a.status not in inactive_statuses]
-    applied = [a for a in all_apps if a.status == "Applied"]
-    interviews = [a for a in all_apps if a.status == "Interview Scheduled"]
-    offers = [a for a in all_apps if a.status == "Offer Received"]
-    rejected = [a for a in all_apps if a.status == "Rejected"]
-    upcoming = _check_upcoming(all_apps, horizon_days=7)
-
+    inactive = {"Rejected", "Withdrawn"}
     return schemas.DashboardSummary(
         total_applications=len(all_apps),
-        active_applications=len(active),
-        applied_count=len(applied),
-        interview_scheduled=len(interviews),
-        offers_received=len(offers),
-        rejected_count=len(rejected),
-        upcoming=upcoming,
+        active_applications=sum(1 for a in all_apps if a.status not in inactive),
+        applied_count=sum(1 for a in all_apps if a.status == "Applied"),
+        interview_scheduled=sum(1 for a in all_apps if a.status == "Interview Scheduled"),
+        offers_received=sum(1 for a in all_apps if a.status == "Offer Received"),
+        rejected_count=sum(1 for a in all_apps if a.status == "Rejected"),
+        upcoming=_check_upcoming(all_apps),
     )
 
 
-@router.patch("/{student_id}/applications/{application_id}", response_model=schemas.ApplicationOut)
+@router.patch(
+    "/{student_id}/applications/{application_id}",
+    response_model=schemas.ApplicationOut,
+)
 def update_application(
+    student_id: int,
+    application_id: int,
+    body: schemas.ApplicationUpdate,
+    db: Session = Depends(get_db),
+):
+    _get_student_or_404(student_id, db)
+    app = _get_application_or_404(student_id, application_id, db)
+
+    if body.status is not None and body.status not in models.APPLICATION_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid status. Must be one of: {models.APPLICATION_STATUSES}",
+        )
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        if field in ("application_date", "deadline"):
+            setattr(app, field, _parse_date(value))
+        elif field == "interview_date":
+            setattr(app, field, _parse_datetime(value))
+        else:
+            setattr(app, field, value)
+
+    app.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(app)
+    return _application_to_out(app)
+
+
+@router.delete("/{student_id}/applications/{application_id}", status_code=204)
+def delete_application(
+    student_id: int,
+    application_id: int,
+    db: Session = Depends(get_db),
+):
+    _get_student_or_404(student_id, db)
+    app = _get_application_or_404(student_id, application_id, db)
+    db.delete(app)
+    db.commit()
